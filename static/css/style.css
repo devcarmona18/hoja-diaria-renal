@@ -1,0 +1,474 @@
+/* ── Reset & Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+/* ── Inputs numéricos ────────────────────────────────────────────────────── */
+input[type="number"].peso-input {
+  width: 72px;
+  text-align: right;
+  padding: 2px 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: #fff;
+}
+input[type="number"].peso-input:focus {
+  outline: 2px solid #3b82f6;
+  border-color: transparent;
+}
+input[type="number"].peso-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* ── Tabla de sesión ──────────────────────────────────────────────────────── */
+.tbl-sesion {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.8125rem;
+}
+.tbl-sesion th {
+  background: #1e3a5f;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.tbl-sesion td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tbl-sesion tr:hover td { background: rgba(0,0,0,0.03); }
+
+/* ── Bandas por estación: Amarilla / Azul / Roja ──────────────────────────── */
+.row-est-1 { background: #fefce8; }                          /* yellow-50 */
+.row-est-1:hover td { background: #fef08a !important; }      /* yellow-200 */
+.row-est-2 { background: #eff6ff; }                          /* blue-50   */
+.row-est-2:hover td { background: #bfdbfe !important; }      /* blue-200  */
+.row-est-3 { background: #fff1f2; }                          /* rose-50   */
+.row-est-3:hover td { background: #fecdd3 !important; }      /* rose-200  */
+
+/* Encabezado de estación */
+.row-estacion-hdr td {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 5px 8px;
+  color: #fff;
+}
+.row-estacion-hdr.est-1 td { background: #a16207; }   /* amber-700  — Amarilla */
+.row-estacion-hdr.est-2 td { background: #1d4ed8; }   /* blue-700   — Azul     */
+.row-estacion-hdr.est-3 td { background: #b91c1c; }   /* red-700    — Roja     */
+
+/* ── Botones de asistencia ────────────────────────────────────────────────── */
+.btn-asist {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.1s;
+  color: #64748b;
+  background: #f8fafc;
+}
+.btn-asist:hover { filter: brightness(0.92); }
+.btn-asist.active-A { background: #16a34a; color: #fff; border-color: #16a34a; }
+.btn-asist.active-F { background: #dc2626; color: #fff; border-color: #dc2626; }
+.btn-asist.active-H { background: #d97706; color: #fff; border-color: #d97706; }
+
+/* ── Pérdida / Ganancia ───────────────────────────────────────────────────── */
+.perdida-ok   { color: #0f766e; font-weight: 600; }
+.perdida-warn { color: #d97706; font-weight: 600; }
+.perdida-crit { color: #dc2626; font-weight: 700; }
+.ganancia-val { color: #6b7280; font-size: 0.75rem; }
+
+/* ── Checkboxes ───────────────────────────────────────────────────────────── */
+.chk-epo    { width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb; }
+.chk-hierro { width: 16px; height: 16px; cursor: pointer; accent-color: #b45309; }
+
+/* ── Observaciones ────────────────────────────────────────────────────────── */
+input.obs-input {
+  width: 140px;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  color: #475569;
+}
+input.obs-input:focus { outline: 2px solid #93c5fd; border-color: transparent; }
+
+/* ── Filas F/H ────────────────────────────────────────────────────────────── */
+.row-F td { opacity: 0.48; }
+.row-H td { background: #fef9c3 !important; }
+
+/* ── Dashboard ────────────────────────────────────────────────────────────── */
+.turno-btn {
+  padding: 10px 28px;
+  border-radius: 8px;
+  border: 2px solid #cbd5e1;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #fff;
+  color: #334155;
+}
+.turno-btn.selected  { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.turno-btn:hover:not(.selected) { background: #f8fafc; }
+
+/* ── Tabs de estación en sesión ───────────────────────────────────────────── */
+.tab-est { padding: 5px 16px; border-radius: 9999px; font-size: 0.8125rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
+.tab-est.tab-todas   { background: #1e3a5f; color: #fff; }
+.tab-est.tab-todas-off { background: #fff; color: #1e3a5f; border-color: #94a3b8; }
+.tab-est.tab-1-on  { background: #a16207; color: #fff; }
+.tab-est.tab-1-off { background: #fefce8; color: #a16207; border-color: #fde047; }
+.tab-est.tab-2-on  { background: #1d4ed8; color: #fff; }
+.tab-est.tab-2-off { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; }
+.tab-est.tab-3-on  { background: #b91c1c; color: #fff; }
+.tab-est.tab-3-off { background: #fff1f2; color: #b91c1c; border-color: #fca5a5; }
+
+/* ── Cierre / Resumen ─────────────────────────────────────────────────────── */
+.tbl-cierre { border-collapse: collapse; width: 100%; }
+.tbl-cierre th {
+  background: #1e3a5f; color: #e2e8f0;
+  padding: 8px 14px; text-align: center; font-size: 0.8125rem;
+}
+.tbl-cierre td { padding: 8px 14px; border: 1px solid #e2e8f0; text-align: center; }
+.tbl-cierre tr.total-row td { background: #1e3a5f; color: #fff; font-weight: 700; }
+.badge-A { color: #16a34a; font-weight: 700; }
+.badge-F { color: #dc2626; font-weight: 700; }
+.badge-H { color: #d97706; font-weight: 700; }
+
+/* ── CRUD — tabla de pacientes ────────────────────────────────────────────── */
+.tbl-crud { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.tbl-crud th { background: #1e3a5f; color: #e2e8f0; padding: 7px 10px; text-align: left; font-size: 0.75rem; }
+.tbl-crud td { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; }
+.tbl-crud tr:hover td { background: #f8fafc; }
+.tbl-crud tr.inactivo td { opacity: 0.45; }
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+#modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+#modal-overlay.hidden { display: none; }
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+  padding: 28px;
+  width: 100%; max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: 16px;
+}
+.form-label { display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 3px; }
+.form-input {
+  width: 100%; border: 1px solid #cbd5e1; border-radius: 6px;
+  padding: 6px 10px; font-size: 0.875rem; color: #1e293b;
+  outline: none;
+}
+.form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 16px; padding-right: 28px; }
+
+/* ── Historial ────────────────────────────────────────────────────────────── */
+.tbl-hist { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.tbl-hist th { background: #1e3a5f; color: #e2e8f0; padding: 7px 12px; text-align: center; }
+.tbl-hist td { padding: 6px 12px; border-bottom: 1px solid #e2e8f0; text-align: center; }
+.tbl-hist tr:hover td { background: #f0f9ff; cursor: pointer; }
+
+/* ── Labs (F2) ────────────────────────────────────────────────────────────── */
+.tbl-labs { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.tbl-labs th { background: #1e3a5f; color: #e2e8f0; padding: 7px 12px; font-size: 0.75rem; }
+.tbl-labs td { padding: 5px 12px; border-bottom: 1px solid #f1f5f9; }
+.lab-normal { color: #0f766e; font-weight: 600; }
+.lab-alto   { color: #dc2626; font-weight: 700; }
+.lab-bajo   { color: #d97706; font-weight: 700; }
+
+/* ── Programación ─────────────────────────────────────────────────────────── */
+.tbl-prog { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.tbl-prog th { background: #1e3a5f; color: #e2e8f0; padding: 6px 12px; text-align: left; font-size: 0.75rem; }
+.tbl-prog td { padding: 5px 12px; border-bottom: 1px solid #f1f5f9; }
+.tbl-prog tr.row-est-1 { background: #fefce8; }
+.tbl-prog tr.row-est-2 { background: #eff6ff; }
+.tbl-prog tr.row-est-3 { background: #fff1f2; }
+
+/* ── Save indicator ──────────────────────────────────────────────────────── */
+.save-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 4px; }
+.save-dot.pending { background: #f59e0b; animation: pulse 0.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Print ────────────────────────────────────────────────────────────────── */
+@media print {
+  body { background:#fff; font-size:11px; }
+  .no-print, header, #toast, #modal-overlay { display:none !important; }
+  .print-section { break-inside:avoid; }
+}
+
+/* ── Asistencia NA (no asiste) ────────────────────────────────────────────── */
+.btn-asist.active-NA { background: #64748b; color: #fff; border-color: #64748b; }
+.row-NA td { opacity: 0.58; }
+.badge-NA { color: #64748b; font-weight: 700; }
+
+/* ── Tipo de acceso vascular ──────────────────────────────────────────────── */
+.badge-acceso {
+  display: inline-flex; align-items: center;
+  padding: 1px 5px; border-radius: 3px;
+  font-size: 0.63rem; font-weight: 700; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.badge-cy     { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+.badge-fav    { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.badge-fav-ar { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge-fav-ane{ background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+
+/* ── Subtítulo de celda paciente (filtro, hep dosis) ─────────────────────── */
+.pac-subtxt {
+  display: block;
+  font-size: 0.62rem;
+  color: #94a3b8;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+/* ── KtV input ────────────────────────────────────────────────────────────── */
+input.ktv-input {
+  width: 50px;
+  text-align: right;
+  padding: 2px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+input.ktv-input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+input.ktv-input:disabled { background: #f1f5f9; color: #94a3b8; }
+
+/* ── Transitorio input (inline en fila) ───────────────────────────────────── */
+input.trans-input {
+  width: 130px;
+  font-size: 0.7rem;
+  padding: 2px 5px;
+  border: 1px dashed #f59e0b;
+  border-radius: 3px;
+  background: #fffbeb;
+  color: #92400e;
+}
+input.trans-input:focus { outline: 1px solid #f59e0b; }
+
+/* ── Drag & drop de filas ─────────────────────────────────────────────────── */
+tr[draggable="true"] { cursor: grab; }
+tr[draggable="true"]:active { cursor: grabbing; }
+tr.dragging { opacity: 0.35; }
+tr.drag-over td { border-top: 2px solid #3b82f6 !important; background: #eff6ff !important; }
+
+/* ── Estadísticas — tabla de sesiones por paciente ───────────────────────── */
+.tbl-stats { border-collapse: collapse; width: 100%; font-size: 0.8125rem; }
+.tbl-stats th {
+  background: #1e3a5f; color: #e2e8f0;
+  padding: 7px 10px; text-align: center; font-size: 0.75rem;
+}
+.tbl-stats td { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+.tbl-stats td:nth-child(2) { text-align: left; }
+.tbl-stats tr:hover td { background: #f8fafc; }
+.tbl-stats tr.row-est-1 { background: #fefce8; }
+.tbl-stats tr.row-est-2 { background: #eff6ff; }
+.tbl-stats tr.row-est-3 { background: #fff1f2; }
+.tbl-stats tr.total-row td { background: #1e3a5f; color: #fff; font-weight: 700; }
+
+/* ── Zona Hospitalizados / No Asisten al fondo de la sesión ──────────────── */
+.row-hna-section-hdr td {
+  background: #7c3aed;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 6px 8px;
+}
+
+/* ── Fila de suplente/transitorio en la estación ─────────────────────────── */
+.row-transitorio td, .row-suplente td {
+  background: #fffbeb !important;
+  border-left: 3px solid #f59e0b;
+}
+.row-transitorio:hover td, .row-suplente:hover td { background: #fef3c7 !important; }
+
+/* Botón restaurar que aparece solo en hover de la fila suplente */
+.btn-restaurar-hover {
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.row-suplente:hover .btn-restaurar-hover { opacity: 1; }
+
+/* ── Badge SUPLENTE ───────────────────────────────────────────────────────── */
+.badge-suplente {
+  display: inline-flex; align-items: center;
+  padding: 1px 5px; border-radius: 3px;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em;
+  background: #fef3c7; color: #92400e; border: 1px solid #f59e0b;
+  white-space: nowrap;
+}
+
+/* ── Botón Reemplazar (icono ↕ en fila activa) ──────────────────────────── */
+.btn-reemplazar {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+tr:hover .btn-reemplazar { opacity: 1; }
+.btn-reemplazar:hover { background: #fef3c7; }
+
+/* ── Slots adicionales al fondo de la sesión ─────────────────────────────── */
+.row-slots-hdr td {
+  background: #0f766e;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 6px 8px;
+}
+.row-slot-vacio td {
+  background: #f8fafc;
+  border-bottom: 1px dashed #e2e8f0;
+}
+.row-slot-vacio:hover td { background: #f1f5f9 !important; }
+.row-slot-encontrado td {
+  background: #f0fdf4 !important;
+  border-bottom: 1px solid #bbf7d0;
+  border-left: 3px solid #16a34a;
+}
+.row-slot-encontrado:hover td { background: #dcfce7 !important; }
+.slot-search-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 560px;
+}
+.slot-input {
+  width: 320px;
+  font-size: 0.8rem;
+  padding: 4px 9px;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  background: #fff;
+}
+.slot-input:focus { outline: 2px solid #0f766e; border-color: transparent; }
+.slot-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+  min-width: 340px;
+  max-width: 520px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.slot-drop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.slot-drop-item:last-child { border-bottom: none; }
+.slot-drop-item:hover, .slot-drop-item.active { background: #eff6ff; }
+.btn-slot-cancel {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid #dc2626;
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+  margin-left: 6px;
+}
+.btn-slot-cancel:hover { background: #fee2e2; }
+
+/* ── Botón Restaurar (↩ en fila H/NA y en slot transitorio) ─────────────── */
+.btn-restaurar {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid #16a34a;
+  background: #f0fdf4;
+  color: #166534;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s;
+}
+.btn-restaurar:hover { background: #dcfce7; }
+.btn-restaurar.ml-2 { margin-left: 8px; }
+
+/* ── Panel Clínico Fase 5 — colores Hb y otros labs ──────────────────────── */
+.lab-ph6  { color: #7c3aed; font-weight: 700; }   /* morado: crítico < 6    */
+.lab-ph10 { color: #dc2626; font-weight: 700; }   /* rojo:   bajo   < 10   */
+.lab-ph11 { color: #d97706; font-weight: 700; }   /* ámbar:  límite < 11   */
+.lab-ok   { color: #16a34a; font-weight: 600; }   /* verde:  normal >= 11  */
+
+.panel-ph6  { background: #f5f3ff; border-left: 4px solid #7c3aed; }
+.panel-ph10 { background: #fef2f2; border-left: 4px solid #dc2626; }
+.panel-ph11 { background: #fffbeb; border-left: 4px solid #d97706; }
+.panel-ok   { background: #f0fdf4; border-left: 4px solid #16a34a; }
+.panel-none { background: #f8fafc; border-left: 4px solid #cbd5e1; }
+
+/* ── Tabla de sesión: scroll horizontal explícito ─────────────────────────── */
+.tbl-sesion-wrap { overflow-x: auto; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.tbl-sesion th, .tbl-sesion td { white-space: nowrap; }
+
+/* ── IA: animación puntos typing ───────────────────────────────────────────── */
+.ia-typing-dots { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+.ia-typing-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #6366f1; opacity: 0.6;
+  animation: ia-bounce 1.2s infinite ease-in-out;
+}
+.ia-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ia-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes ia-bounce {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40%            { transform: scale(1);   opacity: 1;   }
+}
+
+/* ── Formulario inputs ─────────────────────────────────────────────────────── */
+.form-label { display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 0.25rem; }
+.form-input  { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.375rem 0.625rem;
+               font-size: 0.875rem; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.form-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.25); }
+.form-select { appearance: auto; }
+
+/* ── EPO preview highlight ─────────────────────────────────────────────────── */
+#epo-preview { padding: 2px 0; transition: all .2s; }

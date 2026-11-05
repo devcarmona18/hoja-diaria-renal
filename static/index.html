@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoja Diaria — Unidad Renal</title>
+  <link rel="stylesheet" href="/static/vendor/tailwind.css" />
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="bg-slate-100 min-h-screen font-sans text-slate-800">
+
+  <!-- HEADER -->
+  <header class="bg-blue-900 text-white shadow-lg print:hidden">
+    <div class="flex items-center gap-3 px-4 py-2">
+      <div class="flex items-center gap-2">
+        <svg class="w-6 h-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        <span class="font-bold text-base tracking-wide">Unidad Renal · Hoja Diaria</span>
+      </div>
+      <div id="header-info" class="text-blue-200 text-sm ml-2 hidden">
+        <span id="header-fecha"></span>
+        <span class="mx-1">·</span>
+        <span id="header-turno" class="font-semibold"></span>
+        <span id="header-cerrada" class="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded hidden">CERRADA</span>
+      </div>
+      <div id="header-save" class="ml-4 text-xs text-blue-300 hidden">
+        <span class="save-dot"></span>
+        <span id="save-status">Guardado</span>
+      </div>
+      <div class="flex gap-2 ml-auto print:hidden">
+        <button id="btn-inicio" onclick="goHome()"
+          class="hidden text-blue-200 hover:text-white text-sm underline">← Inicio</button>
+        <button id="btn-cierre"
+          class="hidden bg-amber-500 hover:bg-amber-400 text-white text-sm px-3 py-1 rounded font-medium">
+          Cierre del día
+        </button>
+        <button id="btn-programar"
+          class="hidden bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 py-1 rounded font-medium">
+          Programar próxima
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- APP MOUNT -->
+  <main id="app" class="p-4"></main>
+
+  <!-- MODAL GLOBAL -->
+  <div id="modal-overlay" class="hidden">
+    <div class="modal-box">
+      <h3 id="modal-title" class="text-lg font-bold text-blue-900 mb-4"></h3>
+      <div id="modal-body"></div>
+      <div id="modal-footer" class="flex justify-end gap-2 mt-6"></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="fixed bottom-4 right-4 hidden z-50">
+    <div id="toast-inner" class="px-4 py-3 rounded-lg shadow-xl text-white text-sm font-medium"></div>
+  </div>
+
+  <!-- Scripts: orden importa — app.js primero (define G, helpers) -->
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/crud.js"></script>
+  <script src="/static/js/historial.js"></script>
+  <script src="/static/js/laboratorios.js"></script>
+  <script src="/static/js/estadisticas.js"></script>
+  <script src="/static/js/ia.js"></script>
+</body>
+</html>

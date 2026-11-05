@@ -1,0 +1,47 @@
+# ── Python ──────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# ── Bases de datos (pueden contener datos reales de pacientes) ──
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+renal.db
+
+# ── Secretos / configuración local ──────
+.env
+.env.*
+!.env.example
+ia_config.json
+
+# ── Logs y respaldos ────────────────────
+*.log
+logs/
+backup/
+backups/
+respaldo*/
+*.bak
+*.backup
+
+# ── Carpetas con datos reales / exportaciones ──
+datos/
+data/
+exports/
+*.xlsx
+*.xls
+*.csv
+
+# ── Binarios pesados ────────────────────
+*.exe
+node_modules/
+
+# ── Editor / SO ─────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
