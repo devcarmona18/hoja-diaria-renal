@@ -7,8 +7,6 @@ import sys
 from database import engine, SessionLocal
 import models
 
-models.Base.metadata.create_all(bind=engine)
-
 PRIMEROS_F = [
     "María", "Ana", "Carmen", "Rosa", "Elena", "Isabel",
     "Laura", "Sofía", "Marta", "Lucía", "Patricia", "Sandra",
@@ -53,7 +51,45 @@ def generar_cedula(idx: int) -> str:
     return f"V-{base:08d}"
 
 
+def crear_pacientes() -> list:
+    """Genera los 144 pacientes ficticios (3 turnos × 3 estaciones × 16 camas)."""
+    pacientes = []
+    idx = 0
+    for turno in ("M", "T", "N"):
+        for estacion in (1, 2, 3):
+            for cama in range(1, 17):   # camas 1–16
+                pacientes.append(models.Paciente(
+                    nombre=generar_nombre(idx),
+                    cedula=generar_cedula(idx),
+                    estacion=estacion,
+                    cama=cama,
+                    turno=turno,
+                    peso_seco=PESOS_SECOS[idx % len(PESOS_SECOS)],
+                    activo=True,
+                ))
+                idx += 1
+    return pacientes
+
+
+def sembrar_si_vacia(db) -> int:
+    """Carga los pacientes ficticios solo si no hay ninguno. Devuelve cuántos creó."""
+    if db.query(models.Paciente).count() > 0:
+        return 0
+    pacientes = crear_pacientes()
+    db.add_all(pacientes)
+    db.commit()
+    return len(pacientes)
+
+
+def limpiar(db) -> None:
+    for modelo in (models.Laboratorio, models.Programacion, models.Registro,
+                   models.Sesion, models.Paciente):
+        db.query(modelo).delete()
+    db.commit()
+
+
 def main():
+    models.Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         existentes = db.query(models.Paciente).count()
@@ -61,37 +97,12 @@ def main():
             print(f"Ya hay {existentes} pacientes. Usa --force para repoblar.")
             if "--force" not in sys.argv:
                 return
-
-            db.query(models.Programacion).delete()
-            db.query(models.Registro).delete()
-            db.query(models.Sesion).delete()
-            db.query(models.Paciente).delete()
-            db.commit()
+            limpiar(db)
             print("Base de datos limpiada.")
 
-        pacientes = []
-        idx = 0
-        for turno in ("M", "T", "N"):
-            for estacion in (1, 2, 3):
-                for cama in range(1, 17):   # camas 1–16
-                    p = models.Paciente(
-                        nombre=generar_nombre(idx),
-                        cedula=generar_cedula(idx),
-                        estacion=estacion,
-                        cama=cama,
-                        turno=turno,
-                        peso_seco=PESOS_SECOS[idx % len(PESOS_SECOS)],
-                        activo=True,
-                    )
-                    pacientes.append(p)
-                    idx += 1
-
-        db.add_all(pacientes)
-        db.commit()
-        print(f"OK: {len(pacientes)} pacientes ficticios creados correctamente.")
-        print("  Turno M: 48 pacientes (Est 1-3, camas 1-16)")
-        print("  Turno T: 48 pacientes (Est 1-3, camas 1-16)")
-        print("  Turno N: 48 pacientes (Est 1-3, camas 1-16)")
+        n = sembrar_si_vacia(db)
+        print(f"OK: {n} pacientes ficticios creados correctamente.")
+        print("  Turnos M, T y N: 48 pacientes cada uno (Est 1-3, camas 1-16)")
     finally:
         db.close()
 
