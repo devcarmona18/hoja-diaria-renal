@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ingresar — Hoja Diaria Renal</title>
+  <link rel="stylesheet" href="/static/vendor/tailwind.css" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:," />
+</head>
+<body class="bg-slate-100 min-h-screen font-sans text-slate-800 flex flex-col">
+
+  <header class="bg-blue-900 text-white shadow-lg">
+    <div class="flex items-center gap-2 px-4 py-2">
+      <svg class="w-6 h-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+      <span class="font-bold text-base tracking-wide">Unidad Renal · Hoja Diaria</span>
+    </div>
+  </header>
+
+  <main class="flex-1 flex items-start justify-center px-4">
+    <div class="w-full max-w-sm mt-12 space-y-4">
+      <form id="form-login" class="bg-white rounded-2xl shadow-xl p-8 space-y-4">
+        <h1 class="text-xl font-bold text-blue-900 text-center">Ingresar</h1>
+        <div>
+          <label for="usuario" class="block text-sm font-semibold text-slate-600 mb-1">Usuario</label>
+          <input id="usuario" name="usuario" autocomplete="username" required
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label for="password" class="block text-sm font-semibold text-slate-600 mb-1">Contraseña</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button type="submit"
+          class="w-full bg-blue-800 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-base transition-colors">
+          Entrar
+        </button>
+        <p id="login-error" class="text-red-600 text-sm text-center hidden"></p>
+      </form>
+
+      <div id="demo-box" class="hidden bg-white rounded-2xl shadow p-6 text-center space-y-3">
+        <p class="text-sm text-slate-600">¿Solo quieres ver cómo funciona?</p>
+        <button id="btn-demo" type="button"
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-base transition-colors">
+          Ver demo (solo lectura)
+        </button>
+        <p class="text-xs text-slate-400">Todos los pacientes de la demo son ficticios.</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id)
+
+    function mostrarError(msg) {
+      $("login-error").textContent = msg
+      $("login-error").classList.remove("hidden")
+    }
+
+    async function post(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        throw new Error(e.detail || "No se pudo ingresar")
+      }
+      return r.json()
+    }
+
+    $("form-login").addEventListener("submit", async ev => {
+      ev.preventDefault()
+      $("login-error").classList.add("hidden")
+      try {
+        await post("/api/auth/login", { usuario: $("usuario").value.trim(), password: $("password").value })
+        location.href = "/"
+      } catch (e) { mostrarError(e.message) }
+    })
+
+    $("btn-demo").addEventListener("click", async () => {
+      try { await post("/api/auth/demo"); location.href = "/" }
+      catch (e) { mostrarError(e.message) }
+    })
+
+    fetch("/api/auth/me").then(r => r.json()).then(me => {
+      if (me.autenticado) { location.href = "/"; return }
+      if (me.demo_mode) $("demo-box").classList.remove("hidden")
+    }).catch(() => {})
+  </script>
+</body>
+</html>

@@ -472,3 +472,7 @@ tr:hover .btn-reemplazar { opacity: 1; }
 
 /* ── EPO preview highlight ─────────────────────────────────────────────────── */
 #epo-preview { padding: 2px 0; transition: all .2s; }
+
+/* ── Roles y módulos opcionales ──────────────────────────────────────────── */
+.sin-ia .solo-ia,
+.modo-demo .solo-admin { display: none !important; }
