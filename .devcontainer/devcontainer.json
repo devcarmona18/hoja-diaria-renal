@@ -1,0 +1,18 @@
+{
+  "name": "Hoja Diaria Renal",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "postCreateCommand": "pip install -r requirements-dev.txt && python seed.py",
+  "postAttachCommand": "echo 'Arranca la app con: uvicorn main:app --reload --host 0.0.0.0 --port 8000'",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": { "label": "Hoja Diaria Renal", "onAutoForward": "openPreview" }
+  },
+  "containerEnv": {
+    "DEMO_MODE": "true"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance"]
+    }
+  }
+}
