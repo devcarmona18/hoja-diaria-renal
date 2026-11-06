@@ -1,17 +1,15 @@
 """
 Fase 4 — IA: Consulta clínica sobre historial del paciente.
-Usa la Claude API (anthropic). Requiere clave en ia_config.json o
-variable de entorno ANTHROPIC_API_KEY.
+Usa la Claude API (anthropic). Solo se activa si existe la variable de
+entorno ANTHROPIC_API_KEY; si no, el frontend oculta el módulo.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
-import os, json
+import config
 
 router = APIRouter()
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "ia_config.json")
 
 _SYSTEM_PROMPT = """Eres un asistente clínico especializado en nefrología y hemodiálisis.
 Recibes el historial resumido de un paciente en diálisis y respondes preguntas del equipo de enfermería o médico.
@@ -22,16 +20,7 @@ Los datos son ficticios para entorno de desarrollo."""
 
 
 def _get_api_key() -> str | None:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, encoding="utf-8") as f:
-                return json.load(f).get("anthropic_key")
-        except Exception:
-            pass
-    return None
+    return config.ANTHROPIC_API_KEY or None
 
 
 def _build_context(p: models.Paciente, registros: list, labs: list) -> str:
@@ -99,17 +88,6 @@ def ia_status():
     return {"configured": bool(_get_api_key())}
 
 
-@router.post("/config")
-def ia_guardar_config(data: schemas.IAConfigInput):
-    """Guarda la clave API de Anthropic en ia_config.json."""
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump({"anthropic_key": data.api_key}, f)
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(500, f"Error al guardar config: {e}")
-
-
 @router.post("/consulta")
 def ia_consulta(data: schemas.IAConsulta, db: Session = Depends(get_db)):
     """
@@ -119,8 +97,8 @@ def ia_consulta(data: schemas.IAConsulta, db: Session = Depends(get_db)):
     api_key = _get_api_key()
     if not api_key:
         raise HTTPException(
-            400,
-            "IA no configurada. Ingrese su clave de API de Anthropic en la pantalla de IA."
+            503,
+            "Módulo IA desactivado: falta la variable de entorno ANTHROPIC_API_KEY."
         )
 
     try:
