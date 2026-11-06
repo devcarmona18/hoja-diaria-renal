@@ -30,66 +30,26 @@ async function renderIA(pacienteId = null, pacienteNombre = null) {
   }
 }
 
-// ── Vista: configurar clave API ───────────────────────────────────────────────
+// ── Vista: IA desactivada (no hay ANTHROPIC_API_KEY en el servidor) ──────────
 
 function _renderIASetup() {
   app().innerHTML = `
     <div class="max-w-lg mx-auto mt-10">
-      <div class="bg-white rounded-2xl shadow-xl p-8">
-        <div class="text-center mb-6">
-          <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-100 rounded-full mb-2">
-            <span class="text-3xl">🤖</span>
-          </div>
-          <h2 class="text-xl font-bold text-blue-900">Configurar IA Clínica (Fase 4)</h2>
-          <p class="text-slate-500 text-sm mt-1">
-            Ingrese su clave de API de Anthropic para activar la consulta IA.<br/>
-            La clave se guarda localmente en el servidor (ia_config.json).
-          </p>
+      <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-100 rounded-full mb-2">
+          <span class="text-3xl">🤖</span>
         </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-semibold text-slate-600 mb-1">Clave API de Anthropic</label>
-            <input id="ia-key-input" type="password" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm
-              focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-              placeholder="sk-ant-api03-..." />
-            <p class="text-xs text-slate-400 mt-1">
-              Obtenga su clave en console.anthropic.com → API Keys
-            </p>
-          </div>
-          <button onclick="_iaGuardarConfig()"
-            class="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl text-sm">
-            Guardar y activar IA
-          </button>
-          <div id="ia-setup-err" class="text-red-600 text-sm hidden"></div>
-        </div>
-
-        <div class="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
-          <strong>Nota de privacidad:</strong> Al usar esta función, el historial clínico del paciente
-          (datos ficticios en modo desarrollo) se envía a la API de Anthropic para generar la respuesta.
-          No use datos reales hasta contar con aprobación institucional.
-        </div>
-
-        <div class="mt-4 text-center">
+        <h2 class="text-xl font-bold text-blue-900">IA Clínica desactivada</h2>
+        <p class="text-slate-500 text-sm mt-2">
+          Para activarla, define la variable de entorno <code>ANTHROPIC_API_KEY</code> en el servidor
+          y reinícialo.
+        </p>
+        <div class="mt-6">
           <button onclick="goHome()" class="text-slate-400 hover:text-slate-600 text-sm underline">← Volver al inicio</button>
         </div>
       </div>
     </div>
   `
-}
-
-async function _iaGuardarConfig() {
-  const key = $("ia-key-input")?.value.trim()
-  const err = $("ia-setup-err")
-  if (!key) { err.textContent = "Ingrese la clave API"; err.classList.remove("hidden"); return }
-  err.classList.add("hidden")
-  try {
-    await apiPost("/api/ia/config", { api_key: key })
-    toast("IA configurada correctamente")
-    _renderIASeleccionPaciente()
-  } catch (e) {
-    err.textContent = e.message; err.classList.remove("hidden")
-  }
 }
 
 // ── Vista: selección de paciente (cuando se entra desde dashboard) ─────────────
@@ -135,7 +95,6 @@ async function _renderIASeleccionPaciente() {
         </div>
         <div class="mt-4 text-center flex gap-4 justify-center">
           <button onclick="goHome()" class="text-slate-400 hover:text-slate-600 text-sm underline">← Inicio</button>
-          <button onclick="_renderIASetup()" class="text-indigo-400 hover:text-indigo-600 text-sm underline">Cambiar clave API</button>
         </div>
       </div>
     </div>

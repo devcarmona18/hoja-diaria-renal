@@ -66,16 +66,16 @@ async function renderCRUD(turno = "M") {
         <td class="text-right">
           <div class="flex gap-1 justify-end">
             <button onclick="crudEditar(${p.id})"
-              class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-medium">Editar</button>
+              class="solo-admin bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-medium">Editar</button>
             ${p.activo
               ? `<button onclick="crudEliminar(${p.id},'${nomEsc}')"
-                   class="bg-red-100 hover:bg-red-200 text-red-700 text-xs px-2 py-1 rounded font-medium">Eliminar</button>`
+                   class="solo-admin bg-red-100 hover:bg-red-200 text-red-700 text-xs px-2 py-1 rounded font-medium">Eliminar</button>`
               : `<button onclick="crudReactivar(${p.id},'${nomEsc}')"
-                   class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded font-medium">Reactivar</button>`}
+                   class="solo-admin bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded font-medium">Reactivar</button>`}
             <button onclick="crudVerLabs(${p.id})"
               class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs px-2 py-1 rounded font-medium">Labs</button>
             <button onclick="crudVerIA(${p.id}, '${nomEsc}')"
-              class="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs px-2 py-1 rounded font-medium">IA</button>
+              class="solo-ia solo-admin bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs px-2 py-1 rounded font-medium">IA</button>
           </div>
         </td>
       </tr>`
@@ -107,7 +107,7 @@ async function renderCRUD(turno = "M") {
                 ${_crudVerInactivos ? "Ocultar inactivos" : `Ver inactivos (${inactivosCount})`}
               </button>` : ""}
             <button onclick="crudNuevo()"
-              class="bg-blue-800 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-semibold">
+              class="solo-admin bg-blue-800 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-semibold">
               + Nuevo paciente
             </button>
           </div>

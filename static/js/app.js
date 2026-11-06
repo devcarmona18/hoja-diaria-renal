@@ -15,6 +15,8 @@ let G = {
   vista:      "dashboard",
   saveTimers: {},
   pendientes: new Set(),
+  me:         {},      // /api/auth/me → rol, demo_mode, ia_enabled…
+  readonly:   false,   // true para el usuario demo (solo lectura)
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
@@ -82,30 +84,20 @@ function toast(msg, tipo = "ok") {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-async function apiGet(path) {
-  const r = await fetch(path)
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText) }
-  return r.json()
+async function _apiCheck(r) {
+  if (r.status === 401) { location.href = "/login"; throw new Error("Sesión expirada") }
+  if (!r.ok && r.status !== 204) {
+    const e = await r.json().catch(() => ({}))
+    throw new Error(e.detail || r.statusText)
+  }
+  return r
 }
-async function apiPost(path, body) {
-  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText) }
-  return r.json()
-}
-async function apiPatch(path, body) {
-  const r = await fetch(path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText) }
-  return r.json()
-}
-async function apiPut(path, body) {
-  const r = await fetch(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText) }
-  return r.json()
-}
-async function apiDelete(path) {
-  const r = await fetch(path, { method: "DELETE" })
-  if (!r.ok && r.status !== 204) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText) }
-}
+const _json = body => ({ headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+async function apiGet(path)          { return (await _apiCheck(await fetch(path))).json() }
+async function apiPost(path, body)   { return (await _apiCheck(await fetch(path, { method: "POST",  ..._json(body) }))).json() }
+async function apiPatch(path, body)  { return (await _apiCheck(await fetch(path, { method: "PATCH", ..._json(body) }))).json() }
+async function apiPut(path, body)    { return (await _apiCheck(await fetch(path, { method: "PUT",   ..._json(body) }))).json() }
+async function apiDelete(path)       { await _apiCheck(await fetch(path, { method: "DELETE" })) }
 
 // ── Modal global ──────────────────────────────────────────────────────────────
 function openModal(title, bodyHTML, footerHTML) {
@@ -218,7 +210,7 @@ function renderDashboard() {
           <div class="text-xs text-slate-400 mt-0.5">Auto-programación mensual</div>
         </button>
         <button onclick="renderIA(null, null)"
-          class="bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-4 text-left shadow-sm">
+          class="solo-ia solo-admin bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-4 text-left shadow-sm">
           <div class="text-xl mb-1">🤖</div>
           <div class="font-semibold text-sm">IA Clínica (F4)</div>
           <div class="text-xs text-slate-400 mt-0.5">Consulta sobre historial del paciente</div>
@@ -279,7 +271,7 @@ function dragEnd(e, tr) {
 function renderSesion(estFiltro = 0) {
   _estFiltro = estFiltro
   G.vista = "sesion"; updateHeader()
-  const cerrada = G.sesion.cerrada
+  const cerrada = G.sesion.cerrada || G.readonly
 
   const tabsCfg = [
     { est: 0, label: "Todas",                    on: "tab-todas",   off: "tab-todas-off" },
@@ -798,7 +790,8 @@ function refreshRow(id) {
   const tr = document.querySelector(`tr[data-rid="${id}"]`); if (!tr) return
   const tmp = document.createElement("tbody")
   const isSuplente = r.asistencia === "H" && r.transitorio_paciente
-  tmp.innerHTML = isSuplente ? buildRowSuplente(r, G.sesion.cerrada) : buildRow(r, G.sesion.cerrada)
+  const bloq = G.sesion.cerrada || G.readonly
+  tmp.innerHTML = isSuplente ? buildRowSuplente(r, bloq) : buildRow(r, bloq)
   const newTr = tmp.firstElementChild
   if (newTr) tr.replaceWith(newTr)
 }
@@ -848,7 +841,7 @@ async function renderCierre() {
           <div class="flex gap-2 print:hidden">
             <button onclick="window.print()"
               class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg font-medium">Imprimir</button>
-            ${!sesion.cerrada
+            ${G.readonly ? "" : !sesion.cerrada
               ? `<button onclick="cerrarSesion()" class="bg-red-600 hover:bg-red-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Cerrar sesión definitivo</button>`
               : `<button onclick="reabrirSesion()" class="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Reabrir sesión</button>`}
           </div>
@@ -1141,4 +1134,28 @@ async function renderAutoProgram() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-renderDashboard()
+async function cerrarSesionUsuario() {
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => {})
+  location.href = "/login"
+}
+
+function pintarBarraUsuario() {
+  const me = G.me
+  $("demo-banner").classList.toggle("hidden", !me.demo_mode)
+  $("demo-banner-ro").classList.toggle("hidden", !G.readonly)
+  if (me.auth_enabled) {
+    $("user-info").textContent = G.readonly ? "Invitado (solo lectura)" : (me.usuario || "")
+    $("user-box").classList.remove("hidden")
+  }
+}
+
+async function iniciarApp() {
+  try { G.me = await apiGet("/api/auth/me") } catch { G.me = {} }
+  if (G.me.auth_enabled && !G.me.autenticado) { location.href = "/login"; return }
+  G.readonly = G.me.rol === "demo"
+  document.body.classList.toggle("modo-demo", G.readonly)
+  document.body.classList.toggle("sin-ia", !G.me.ia_enabled)
+  pintarBarraUsuario()
+  renderDashboard()
+}
+iniciarApp()

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/vendor/tailwind.css" />
   <script src="/static/vendor/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:," />
 </head>
 <body class="bg-slate-100 min-h-screen font-sans text-slate-800">
 
@@ -31,6 +32,10 @@
         <span id="save-status">Guardado</span>
       </div>
       <div class="flex gap-2 ml-auto print:hidden">
+        <div id="user-box" class="hidden flex items-center gap-2 text-sm text-blue-200 mr-2">
+          <span id="user-info"></span>
+          <button onclick="cerrarSesionUsuario()" class="text-blue-200 hover:text-white underline">Salir</button>
+        </div>
         <button id="btn-inicio" onclick="goHome()"
           class="hidden text-blue-200 hover:text-white text-sm underline">← Inicio</button>
         <button id="btn-cierre"
@@ -44,6 +49,11 @@
       </div>
     </div>
   </header>
+
+  <!-- BANNER DEMO (solo si DEMO_MODE=true) -->
+  <div id="demo-banner" class="hidden bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center px-4 py-1.5 print:hidden">
+    Demo con datos ficticios · ningún dato corresponde a personas reales<span id="demo-banner-ro" class="hidden"> · <strong>modo solo lectura</strong></span>
+  </div>
 
   <!-- APP MOUNT -->
   <main id="app" class="p-4"></main>

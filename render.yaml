@@ -1,0 +1,25 @@
+# Blueprint de Render: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: hoja-diaria-renal
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: true            # cada push a main se despliega solo
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL       # se pega a mano desde Neon (no se versiona)
+        sync: false
+      - key: APP_USER
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true     # Render genera un valor aleatorio
+      - key: DEMO_MODE
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ANTHROPIC_API_KEY  # opcional; vacío = módulo IA oculto
+        sync: false

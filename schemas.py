@@ -168,10 +168,6 @@ class AutoMesResult(BaseModel):
 
 # ── IA Fase 4 ────────────────────────────────────────────────────────────────
 
-class IAConfigInput(BaseModel):
-    api_key: str
-
-
 class IAConsulta(BaseModel):
     paciente_id: int
     pregunta: str
