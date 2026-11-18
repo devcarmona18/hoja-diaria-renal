@@ -117,8 +117,11 @@ def agregar_paciente_a_sesion(
         raise HTTPException(404, "Sesion no encontrada")
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada")
-    if not db.get(models.Paciente, paciente_id):
+    pac = db.get(models.Paciente, paciente_id)
+    if not pac:
         raise HTTPException(404, "Paciente no encontrado")
+    if pac.archivado_en is not None:   # R13
+        raise HTTPException(400, "El paciente está archivado")
 
     existente = db.query(models.Registro).filter_by(
         sesion_id=sesion_id, paciente_id=paciente_id

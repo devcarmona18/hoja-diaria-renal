@@ -13,6 +13,7 @@ import auth
 import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
+from routers import archivo  # R13
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 
 log = logging.getLogger("uvicorn.error")
@@ -57,6 +58,7 @@ app.include_router(laboratorios.router,  prefix="/api/laboratorios",  tags=["lab
 app.include_router(historial.router,     prefix="/api/historial",     tags=["historial"])
 app.include_router(estadisticas.router,  prefix="/api/estadisticas",  tags=["estadisticas"])
 app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"])
+app.include_router(archivo.router,       prefix="/api/pacientes",     tags=["archivo"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
