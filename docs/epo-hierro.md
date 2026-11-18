@@ -70,7 +70,7 @@ En la base de datos la fila guarda `registros.epo_jeringas` (jeringas de 4.000 U
 
 ## Inasistencias: reprogramación
 
-Se considera que el paciente **no asistió** un día cuando su hoja de ese día está **cerrada** y su fila no tiene asistencia **A** ni **peso de entrada** (la misma regla del pedido de insumos), o cuando su hoja habitual de ese día se cerró y él no aparece en ninguna hoja de ese día. Los días en que estaba inactivo/archivado no cuentan como falta. Si fue reemplazado por un suplente, la falta es de él; el suplente asiste según su propia marca.
+Se considera que el paciente **no asistió** un día cuando su hoja de ese día está **cerrada** y su fila no tiene asistencia **A** ni **peso de entrada** (la misma regla del pedido de insumos: `hoja_dia.llego` / `hoja_dia.falto`), o cuando su hoja habitual de ese día se cerró y él no aparece en ninguna hoja de ese día. Los días en que estaba inactivo/archivado no cuentan como falta. Si fue reemplazado por un suplente, la falta es de él; el suplente asiste según su propia marca.
 
 Se hace **solo al cerrar la hoja** (y al reabrirla), y también con el botón **Recalcular**:
 
@@ -80,6 +80,12 @@ Se hace **solo al cerrar la hoja** (y al reabrirla), y también con el botón **
 - Si después se corrige la asistencia (sí vino) y se vuelve a cerrar, la reprogramación **se deshace**.
 
 Cada cosa queda en la **bitácora** del mes (quién, cuándo, de qué día a cuál).
+
+## Mes cerrado (R12)
+
+Con el mes cerrado en Estadísticas, su programación es de **solo lectura**: generar, agregar pacientes nuevos, regenerar, recalcular, cambiar totales o celdas, días de laboratorio y borrar responden **409** («El mes está cerrado; reábralo para editar») y la pantalla muestra el candado sin botones. El recálculo que dispara el cierre o la reapertura de un día nunca modifica un mes cerrado, y las hojas de ese mes no se rellenan. Al reabrir el mes (administrador + motivo) todo vuelve a funcionar.
+
+Solo entran a la programación los pacientes **activos y no archivados** (`consulta_activos`); si alguno se archiva o inactiva después, sus días desde entonces cuentan como inactivos.
 
 ## Borrar el mes
 

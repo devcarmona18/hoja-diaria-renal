@@ -335,3 +335,69 @@ def test_cierre_cuenta_jeringas(admin):
 def test_valores_dia_sin_programacion_usa_la_programacion_del_dia(admin):
     with SessionLocal() as db:
         assert srv.valores_dia(db, "2019-01-02") == {}
+
+
+# ── R12 + R14: mes cerrado = programación EPO / hierro de solo lectura ───────
+
+MES_CERRADO = "2025-08"     # el 4 es lunes; LMV: 1 4 6 8 11 …
+MSG_CERRADO = "El mes está cerrado; reábralo para editar"
+
+
+def _es_409(r):
+    assert r.status_code == 409, (r.status_code, r.text)
+    assert r.json()["detail"] == MSG_CERRADO
+
+
+def test_mes_cerrado_bloquea_la_programacion_y_el_recalculo(admin):
+    with pacientes(admin, ("T-R14-030", LMV4), mes=MES_CERRADO) as (a,):
+        _generar(admin, MES_CERRADO)
+        f = _fila(_grilla(admin, MES_CERRADO), a["id"])
+        dia = _con_epo(f)[0]
+        ses, _ = marcar(admin, dia, "N", a["id"], asistencia="NA")
+        _cerrar(admin, ses["id"])                 # mes abierto: se reprograma
+        antes = _grilla(admin, MES_CERRADO)
+        assert antes["mes_cerrado"] is False and _fila(antes, a["id"])["celdas"][dia]["estado"] == "falto"
+        assert admin.post("/api/estadisticas/asistencia/2025/08/cerrar").status_code == 200
+        try:
+            g = _grilla(admin, MES_CERRADO)
+            assert g["mes_cerrado"] is True
+            _es_409(admin.post(f"/api/epo-fe/{MES_CERRADO}/generar", json={"regenerar": False}))
+            _es_409(admin.post(f"/api/epo-fe/{MES_CERRADO}/generar", json={"regenerar": True}))
+            _es_409(admin.post(f"/api/epo-fe/{MES_CERRADO}/recalcular", json={}))
+            _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/pacientes/{a['id']}", json={"epo_jeringas": 8}))
+            otro = next(x for x in _con_epo(f) if x > dia and x not in LAB)
+            _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/celdas",
+                              json={"paciente_id": a["id"], "fecha": otro, "epo": 3}))
+            _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/laboratorio", json={"fechas": []}))
+            _es_409(admin.delete(f"/api/epo-fe/{MES_CERRADO}"))
+            # el gancho del cierre de un día no toca las celdas de un mes cerrado
+            with SessionLocal() as db:
+                n_mov = db.query(models.EpoFeMovimiento).filter_by(mes=MES_CERRADO).count()
+                db.query(models.EpoFeMovimiento).filter_by(mes=MES_CERRADO).update({"activo": False})
+                srv.tras_cierre(db, dia, "prueba")
+                db.flush()
+                assert db.query(models.EpoFeMovimiento).filter_by(mes=MES_CERRADO, activo=True).count() == 0
+                assert db.query(models.EpoFeMovimiento).filter_by(mes=MES_CERRADO).count() == n_mov
+                assert srv.sincronizar_hojas(db, MES_CERRADO) == 0
+                db.rollback()
+            g2 = _grilla(admin, MES_CERRADO)
+            assert _fila(g2, a["id"])["celdas"] == _fila(antes, a["id"])["celdas"]
+            assert g2["auditoria"] == antes["auditoria"]
+        finally:
+            r = admin.post("/api/estadisticas/asistencia/2025/08/reabrir", json={"motivo": "Prueba ficticia"})
+            assert r.status_code == 200, r.text
+        assert admin.post(f"/api/epo-fe/{MES_CERRADO}/recalcular", json={}).status_code == 200
+
+
+def test_vino_y_falto_es_la_misma_regla_que_insumos():
+    import hoja_dia as hd
+    from services import insumos
+    casos = [("A", None), ("A", 70.0), (None, 70.0), ("NA", None), ("H", None), ("F", None), (None, None)]
+    for asis, peso in casos:
+        llego = hd.llego(asis, peso)
+        assert llego == (asis == "A" or peso is not None)
+        assert insumos.Asistencia(None, None, None, asis, peso).llego == llego
+        # con la hoja cerrada «no vino» = «faltó» (devolución de insumos y reprogramación R14)
+        assert hd.falto(asis, peso, hoja_cerrada=True) == (not llego)
+    assert hd.falto(None, None, hoja_cerrada=False) is False      # aún sin marcar en hoja abierta
+    assert hd.falto("NA", None, hoja_cerrada=False) is True

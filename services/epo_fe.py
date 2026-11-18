@@ -17,7 +17,8 @@ Valor EFECTIVO de una sesión = plan + lo que le llega reprogramado; una sesión
 a la que faltó el paciente queda en 0 (su dosis se fue a otra).
 
 Estado de un día del paciente (solo cuentan las hojas CERRADAS):
-- ``asistio``: fila con asistencia A o con peso de entrada (misma regla que insumos).
+- ``asistio``: fila con asistencia A o con peso de entrada (``hoja_dia.llego``, la misma
+  regla que el pedido de insumos).
 - ``falto``: fila en hoja cerrada sin A y sin peso de entrada; o su hoja habitual
   (su turno) de ese día cerrada y él no aparece en ninguna hoja de ese día.
 - ``inactivo``: el día cae en un periodo de inactividad/archivo (no se reprograma).
@@ -33,9 +34,11 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
+import hoja_dia as hd
 import models
 from services import epo_fe_algoritmo as alg
 from services.asistencia import ReglaError, validar_mes
+from services.bloqueo_mes import exigir_abierto, mes_cerrado
 from services.medicos import iniciales_medico, normalizar
 from services.pacientes import ahora_utc, consulta_activos
 from services.tiempo import hoy_local
@@ -123,21 +126,22 @@ def estados(db: Session, mes: str, pacientes: dict[int, models.Paciente]) -> dic
     con_fila: set[tuple[int, str]] = set()
     for r in db.query(models.Registro).filter(models.Registro.sesion_id.in_(list(por_id))).all():
         s = por_id[r.sesion_id]
+        # Misma definición de «vino / faltó» que el pedido de insumos (hoja_dia.llego/falto).
+        # En una fila con suplente, el paciente reemplazado cuenta como «H» sin peso.
         personas = []
         if r.transitorio_paciente_id:
-            personas.append((r.paciente_id, False))
-            vino = r.transitorio_asistencia == "A" or r.peso_entrada is not None
-            personas.append((r.transitorio_paciente_id, vino))
+            personas.append((r.paciente_id, r.asistencia or "H", None))
+            personas.append((r.transitorio_paciente_id, r.transitorio_asistencia, r.peso_entrada))
         else:
-            personas.append((r.paciente_id, r.asistencia == "A" or r.peso_entrada is not None))
-        for pid, vino in personas:
+            personas.append((r.paciente_id, r.asistencia, r.peso_entrada))
+        for pid, asis, peso in personas:
             con_fila.add((pid, s.fecha))
             if not s.cerrada:
                 continue
             clave = (pid, s.fecha)
-            if vino:
+            if hd.llego(asis, peso):
                 out[clave] = ASISTIO
-            else:
+            elif hd.falto(asis, peso, hoja_cerrada=True):
                 out.setdefault(clave, FALTO)
     per = _periodos(db, pacientes)
     anio, m = _anio_mes(mes)
@@ -278,7 +282,10 @@ def generar(db: Session, mes: str, usuario: str, regenerar: bool = False) -> dic
 
     ``regenerar``: rehace TODO el mes (borra los ajustes manuales; los días ya
     cerrados no cambian) con los totales guardados de cada paciente.
+    Solo entran pacientes activos y no archivados (``consulta_activos``).
     """
+    _anio_mes(mes)
+    exigir_abierto(db, mes)   # R12: mes cerrado = solo lectura
     mesobj = Mes(db, mes)
     nuevos = []
     for p in consulta_activos(db).all():
@@ -309,6 +316,8 @@ def _exigir_plan(mesobj: Mes, pid: int) -> models.EpoFeMesPaciente:
 
 
 def fijar_totales(db: Session, mes: str, pid: int, epo: Optional[int], fe: Optional[int], usuario: str) -> dict:
+    _anio_mes(mes)
+    exigir_abierto(db, mes)
     mesobj = Mes(db, mes)
     t = _exigir_plan(mesobj, pid)
     antes = (t.epo_jeringas, t.fe_dosis)
@@ -329,6 +338,8 @@ def ajustar_celda(db: Session, mes: str, pid: int, fecha: str, epo: Optional[int
     para mantener el total del mes. ``quitar_ajuste`` devuelve la sesión al reparto automático."""
     if mes_de(fecha) != mes:
         raise ReglaError("La fecha no pertenece al mes", 422)
+    _anio_mes(mes)
+    exigir_abierto(db, mes)
     mesobj = Mes(db, mes)
     _exigir_plan(mesobj, pid)
     p = mesobj.pacientes[pid]
@@ -363,6 +374,7 @@ def ajustar_celda(db: Session, mes: str, pid: int, fecha: str, epo: Optional[int
 def configurar_lab(db: Session, mes: str, fechas: Optional[list[str]], usuario: str) -> dict:
     """Días de laboratorio del mes. ``None`` = volver a la regla por defecto; [] = sin días."""
     _anio_mes(mes)
+    exigir_abierto(db, mes)
     cfg = db.get(models.EpoFeConfigMes, mes)
     if fechas is None:
         if cfg:
@@ -393,6 +405,7 @@ def configurar_lab(db: Session, mes: str, fechas: Optional[list[str]], usuario: 
 
 def borrar_mes(db: Session, mes: str, usuario: str, hoy: Optional[date] = None) -> dict:
     anio, m = _anio_mes(mes)
+    exigir_abierto(db, mes)
     hoy = hoy or hoy_local()
     if (anio, m) >= (hoy.year, hoy.month):
         raise ReglaError("Solo se puede borrar la programación de un mes que ya terminó.", 409)
@@ -415,7 +428,10 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
       no sea de laboratorio, luego el día con menos hierros en la unidad, luego el más cercano.
     Las reprogramaciones ya hechas se conservan (mismo destino); si la asistencia se
     corrige (sí vino) se revierten. Todo queda en la bitácora. Idempotente.
+    Un mes cerrado (R12) no se toca: lanza ``MesCerrado`` (409).
     """
+    _anio_mes(mes)
+    exigir_abierto(db, mes)
     db.flush()
     mesobj = Mes(db, mes)
     resumen = {"reprogramadas": 0, "revertidas": 0, "ajustadas": 0, "sin_destino": 0}
@@ -525,8 +541,9 @@ def _aplicar(r: models.Registro, vals: dict[int, tuple[int, int]]) -> bool:
 
 
 def aplicar_a_sesion(db: Session, sesion: models.Sesion) -> int:
-    """Llena EPO/Fe de las filas de una hoja ABIERTA desde la programación del mes."""
-    if sesion.cerrada:
+    """Llena EPO/Fe de las filas de una hoja ABIERTA desde la programación del mes
+    (nunca las de un mes cerrado, R12)."""
+    if sesion.cerrada or mes_cerrado(db, sesion.fecha):
         return 0
     db.flush()
     vals = valores_dia(db, sesion.fecha)
@@ -536,6 +553,8 @@ def aplicar_a_sesion(db: Session, sesion: models.Sesion) -> int:
 
 
 def sincronizar_hojas(db: Session, mes: str) -> int:
+    if mes_cerrado(db, mes):
+        return 0
     n = 0
     for s in db.query(models.Sesion).filter(models.Sesion.fecha.startswith(mes),
                                             models.Sesion.cerrada.is_(False)).all():
@@ -544,8 +563,11 @@ def sincronizar_hojas(db: Session, mes: str) -> int:
 
 
 def tras_cierre(db: Session, fecha: str, usuario: str) -> None:
-    """Gancho del cierre / reapertura de una hoja: reprograma el mes si tiene programación."""
+    """Gancho del cierre / reapertura de una hoja: reprograma el mes si tiene programación.
+    Un mes cerrado (R12) no se recalcula: sus celdas quedan como estaban."""
     mes = mes_de(fecha)
+    if mes_cerrado(db, mes):
+        return
     if db.query(models.EpoFeMesPaciente.id).filter_by(mes=mes).first():
         recalcular(db, mes, usuario, auditar_vacio=False)
 
@@ -627,6 +649,7 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
         "sin_programacion": len([p for p in activos_sin if dias_semana(p)]),
         "sin_dias": len([p for p in activos_sin if not dias_semana(p)]),
         "puede_borrar": (mesobj.anio, mesobj.m) < (hoy.year, hoy.month),
+        "mes_cerrado": mes_cerrado(db, mes),     # R12: la grilla es de solo lectura
         "jeringa_ui": JERINGA_UI,
         "auditoria": [{"accion": a.accion, "detalle": a.detalle, "usuario": a.usuario,
                        "paciente_id": a.paciente_id,

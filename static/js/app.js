@@ -456,6 +456,10 @@ function epoCeldaHTML(r, dis) {
 }
 
 function setEpo(id, n, el) {
+  if (hojaBloqueada()) {   // R12: sesión cerrada o mes cerrado = solo lectura
+    const r = getReg(id); if (el && r) el.value = String(r.epo_jeringas ?? (r.epo ? 1 : 0))
+    return
+  }
   updateRegLocal(id, { epo_jeringas: n, epo: n > 0, epo_fe_manual: true })
   if (el) { el.classList.toggle("epo-on", n > 0); el.classList.toggle("epo-doble", n > 1) }
   patchRegistro(id, { epo_jeringas: n })

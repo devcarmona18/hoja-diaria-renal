@@ -67,6 +67,8 @@ def test_mes_cerrado_bloquea_hojas_programacion_e_insumos(admin):
             # programación EPO/Fe del día (la del mes, R14, vive en /api/epo-fe)
             _es_409(admin.post("/api/programacion", json={"fecha": "2025-07-14", "turno": "N",
                                                           "items": [{"paciente_id": pid}]}))
+            # R14: la programación EPO / hierro del mes (reemplaza a la antigua «auto-mes»)
+            _es_409(admin.post(f"/api/epo-fe/{MES}/generar", json={"regenerar": False}))
             # cambios de un día
             _es_409(admin.post("/api/asignaciones", json={"fecha": "2025-07-16", "turno": "N",
                                                           "paciente_id": pid, "estacion": 3, "cama": 16}))

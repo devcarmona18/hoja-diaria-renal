@@ -10,7 +10,8 @@ const EF_MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio"
 function _efMesActual() { return hoy().slice(0, 7) }
 function _efUI(n) { return (n * 4000).toLocaleString("es-CO") }
 function _efMesNombre(mes) { const [y, m] = mes.split("-"); return `${EF_MESES[parseInt(m, 10) - 1]} ${y}` }
-function _efEditable() { return !G.readonly }
+// R12: con el mes cerrado la programación es de solo lectura (el servidor responde 409)
+function _efEditable() { return !G.readonly && !(EF.data && EF.data.mes_cerrado) }
 
 async function renderAutoProgram(mes) {
   G.vista = "epofe"; updateHeader()
@@ -104,6 +105,7 @@ function _efPintar() {
         <label class="text-sm font-semibold text-slate-600" for="ef-mes">Mes</label>
         <input type="month" id="ef-mes" value="${g.mes}" class="border border-slate-300 rounded-lg px-2 py-1 text-sm"
           onchange="this.value && renderAutoProgram(this.value)" />
+        ${g.mes_cerrado ? `<span class="badge-mes-cerrado self-center" role="status" title="${typeof AVISO_MES_CERRADO !== "undefined" ? AVISO_MES_CERRADO : "Mes cerrado"}"><span aria-hidden="true">🔒</span> Mes cerrado · solo lectura</span>` : ""}
         <button onclick="window.print()" class="ef-btn">Imprimir</button>
         <a href="/api/epo-fe/${g.mes}/csv" class="ef-btn" download>CSV</a>
         ${botones}
