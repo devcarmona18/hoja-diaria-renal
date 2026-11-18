@@ -77,7 +77,7 @@ async function renderCRUD(turno = "M") {
               class="solo-admin bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-medium">Editar</button>
             ${p.activo
               ? `<button onclick="crudEliminar(${p.id},'${nomEsc}')"
-                   class="solo-admin bg-red-100 hover:bg-red-200 text-red-700 text-xs px-2 py-1 rounded font-medium">Eliminar</button>`
+                   class="solo-admin bg-red-100 hover:bg-red-200 text-red-700 text-xs px-2 py-1 rounded font-medium" title="Archiva al paciente: no borra su historial">Eliminar</button>`
               : `<button onclick="crudReactivar(${p.id},'${nomEsc}')"
                    class="solo-admin bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded font-medium">Reactivar</button>`}
             <button onclick="crudVerLabs(${p.id})"
@@ -114,6 +114,10 @@ async function renderCRUD(turno = "M") {
                 class="${_crudVerInactivos ? "bg-red-100 text-red-700 border-red-300" : "bg-slate-100 text-slate-600 border-slate-300"} border text-xs px-3 py-1.5 rounded-lg font-medium hover:opacity-80 transition">
                 ${_crudVerInactivos ? "Ocultar inactivos" : `Ver inactivos (${inactivosCount})`}
               </button>` : ""}
+            <button onclick="renderArchivados()"
+              class="bg-slate-100 text-slate-700 border border-slate-300 text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-slate-200 btn-foco">
+              Archivados
+            </button>
             <button onclick="crudNuevo()"
               class="solo-admin bg-blue-800 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-semibold">
               + Nuevo paciente
@@ -487,34 +491,34 @@ async function crudToggleActivo(id) {
   } catch (e) { toast(e.message, "err") }
 }
 
+// R13: «Eliminar paciente» = ARCHIVAR (nada clínico se borra; ver archivo.js)
+const MOTIVOS_ARCHIVO = ["Fallecimiento", "Traslado a otra unidad", "Retiro voluntario", "Trasplante", "Otro"]
+
 function crudEliminar(id, nombre) {
   openModal(
-    "Eliminar de estaciones",
+    "Eliminar paciente (archivar)",
     `<div class="space-y-3">
-       <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
-         <span class="text-amber-500 text-lg">⚠</span>
-         <div class="text-sm text-amber-800">
-           <strong>${nombre}</strong> será retirado de las estaciones activas.<br>
-           <span class="text-amber-600">Sus datos quedan guardados en el sistema y podrá ser reactivado si regresa.</span>
-         </div>
+       <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+         <strong>${escHtml(nombre)}</strong> dejará de aparecer en listas, hojas, programación y pedidos.
+         Aparecerá en <strong>Archivados</strong> durante un tiempo y se podrá restaurar.
+         Sus sesiones, laboratorios y asistencia <strong>no se borran</strong>: seguirán en Historial y Estadísticas.
        </div>
-       <p class="text-sm text-slate-500">Esta acción <strong>no elimina</strong> al paciente de la base de datos.</p>
        <div class="grid grid-cols-2 gap-3">
          <div><label class="form-label" for="el-motivo">Motivo *</label>
            <select id="el-motivo" class="form-input form-select"><option value="">— Elegir —</option>
-             ${MOTIVOS_INACTIVO.map(o => `<option value="${o.v}">${o.l}</option>`).join("")}</select></div>
+             ${MOTIVOS_ARCHIVO.map(o => `<option value="${o}">${o}</option>`).join("")}</select></div>
          <div><label class="form-label" for="el-texto">Detalle (opcional)</label>
-           <input id="el-texto" class="form-input" maxlength="200" /></div>
+           <input id="el-texto" class="form-input" maxlength="120" /></div>
        </div>
-       <div id="el-error" class="text-red-600 text-sm hidden"></div>
+       <div id="el-error" class="text-red-700 text-sm hidden" role="alert"></div>
      </div>`,
     `<button onclick="closeModal()"
-       class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
+       class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium btn-foco">
        Cancelar
      </button>
      <button onclick="_confirmarEliminar(${id})"
-       class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-       Eliminar de estaciones
+       class="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg text-sm font-medium btn-foco">
+       Archivar paciente
      </button>`
   )
 }
@@ -522,11 +526,11 @@ function crudEliminar(id, nombre) {
 async function _confirmarEliminar(id) {
   const motivo = $("el-motivo")?.value
   if (!motivo) { const e = $("el-error"); e.textContent = "Indique el motivo"; e.classList.remove("hidden"); return }
-  const motivo_texto = $("el-texto").value.trim() || null
+  const detalle = $("el-texto").value.trim()
   closeModal()
   try {
-    await apiPatch(`/api/pacientes/${id}/toggle-activo`, { motivo, motivo_texto })
-    toast("Paciente retirado de las estaciones")
+    await apiPost(`/api/pacientes/${id}/archivar`, { motivo: detalle ? `${motivo}: ${detalle}` : motivo })
+    toast("Paciente archivado")
     renderCRUD(_crudTurno)
   } catch (e) { toast(e.message, "err") }
 }
