@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 import models, schemas
+import hoja_dia
 from database import get_db
 
 router = APIRouter()
@@ -99,7 +100,7 @@ def update_registro(
 
     db.commit()
     db.refresh(r)
-    return _build_registro_out(r)
+    return hoja_dia.con_ubicacion(_build_registro_out(r), r)
 
 
 @router.get("/{sesion_id}/registros")
@@ -117,7 +118,7 @@ def get_registros(sesion_id: int, db: Session = Depends(get_db)):
         .order_by(models.Paciente.estacion, models.Paciente.cama)
         .all()
     )
-    return [_build_registro_out(r) for r in registros]
+    return [hoja_dia.con_ubicacion(_build_registro_out(r), r) for r in registros]
 
 
 @router.post("/{sesion_id}/paciente/{paciente_id}", status_code=201)
@@ -139,7 +140,9 @@ def agregar_paciente_a_sesion(
     if existente:
         raise HTTPException(400, "El paciente ya esta en esta sesion")
 
-    r = models.Registro(sesion_id=sesion_id, paciente_id=paciente_id)
+    pac = db.get(models.Paciente, paciente_id)
+    r = models.Registro(sesion_id=sesion_id, paciente_id=paciente_id,
+                        estacion=pac.estacion, cama=pac.cama)
     db.add(r)
     db.commit()
 
@@ -150,7 +153,7 @@ def agregar_paciente_a_sesion(
         .filter_by(id=r.id)
         .first()
     )
-    return _build_registro_out(r)
+    return hoja_dia.con_ubicacion(_build_registro_out(r), r)
 
 
 # ── Ruta parametrica ULTIMA (evita que capture /int/registros) ──────────────
@@ -168,29 +171,13 @@ def get_or_create_sesion(fecha: str, turno: str, db: Session = Depends(get_db)):
     db.add(sesion)
     db.flush()
 
-    programados = (
-        db.query(models.Programacion)
-        .filter_by(fecha=fecha, turno=turno)
-        .all()
-    )
-
-    if programados:
-        for prog in programados:
-            db.add(models.Registro(
-                sesion_id=sesion.id,
-                paciente_id=prog.paciente_id,
-                epo=prog.epo_programado,
-                hierro=prog.hierro_programado,
-            ))
-    else:
-        pacientes = (
-            db.query(models.Paciente)
-            .filter_by(turno=turno, activo=True)
-            .order_by(models.Paciente.estacion, models.Paciente.cama)
-            .all()
-        )
-        for p in pacientes:
-            db.add(models.Registro(sesion_id=sesion.id, paciente_id=p.id))
+    # Hoja del día = ubicación base (días LMV/MJS, programación guardada) +
+    # cambios de un día de esa fecha (R2/R7). Ver hoja_dia.componer().
+    try:
+        hoja_dia.crear_registros(db, sesion)
+    except hoja_dia.Conflicto as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
 
     db.commit()
     db.refresh(sesion)
