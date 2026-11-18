@@ -14,6 +14,7 @@ import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
+from routers import asignaciones  # R2/R7: programar el día siguiente, cambios de un día
 
 log = logging.getLogger("uvicorn.error")
 
@@ -21,7 +22,7 @@ log = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     models.Base.metadata.create_all(bind=engine)
-    for accion in migraciones.aplicar(engine):   # columnas nuevas y conversión de datos antiguos
+    for accion in migraciones.aplicar(engine):   # única migración aditiva (R1/R3/R4/R10 y R2/R7)
         log.info("migración: %s", accion)
     if config.DEMO_MODE:
         import seed
@@ -57,6 +58,7 @@ app.include_router(laboratorios.router,  prefix="/api/laboratorios",  tags=["lab
 app.include_router(historial.router,     prefix="/api/historial",     tags=["historial"])
 app.include_router(estadisticas.router,  prefix="/api/estadisticas",  tags=["estadisticas"])
 app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"])
+app.include_router(asignaciones.router,  prefix="/api/asignaciones",  tags=["programacion"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

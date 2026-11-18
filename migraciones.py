@@ -16,10 +16,19 @@ Cambios de esta entrega:
   R3  registros.pa_pie_sistolica / pa_pie_diastolica / fc
   R4  pacientes.heparina_ui_kg (heparina UI/kg, 10-20)
   R10 pacientes.motivo_inactivo / motivo_inactivo_texto
+  R2/R7 tabla asignaciones_dia (cambios de un día) y registros.estacion / cama
+      (ubicación de cada sesión). Al crear esas columnas se rellenan los registros
+      existentes con la ubicación base actual del paciente, así las hojas pasadas
+      se ven igual que antes.
+
+Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
+llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
 """
 from __future__ import annotations
 
 from sqlalchemy import inspect, text
+
+import models
 
 # (tabla, columna, tipo SQL portable)
 COLUMNAS_NUEVAS = [
@@ -32,6 +41,8 @@ COLUMNAS_NUEVAS = [
     ("registros", "pa_pie_sistolica", "INTEGER"),
     ("registros", "pa_pie_diastolica", "INTEGER"),
     ("registros", "fc", "INTEGER"),
+    ("registros", "estacion", "INTEGER"),
+    ("registros", "cama", "INTEGER"),
 ]
 
 # valor antiguo de pacientes.acceso -> (acceso nuevo, estado, calibre)
@@ -50,6 +61,11 @@ def aplicar(engine) -> list[str]:
     tablas = set(insp.get_table_names())
     hechas: list[str] = []
 
+    # R2/R7: tabla nueva (depende de «pacientes» por clave foránea)
+    if "pacientes" in tablas and "asignaciones_dia" not in tablas:
+        models.AsignacionDia.__table__.create(bind=engine, checkfirst=True)
+        hechas.append("+tabla asignaciones_dia")
+
     with engine.begin() as con:
         agregadas: set[tuple[str, str]] = set()
         for tabla, col, tipo in COLUMNAS_NUEVAS:
@@ -61,7 +77,20 @@ def aplicar(engine) -> list[str]:
                 agregadas.add((tabla, col))
                 hechas.append(f"+{tabla}.{col}")
 
-        if "pacientes" in tablas:
+        if {("registros", "estacion"), ("registros", "cama")} & agregadas and "pacientes" in tablas:
+            cols_pac = {c["name"] for c in inspect(con).get_columns("pacientes")}
+            if {"estacion", "cama"} <= cols_pac:
+                r = con.execute(text(
+                    "UPDATE registros SET "
+                    "estacion = (SELECT p.estacion FROM pacientes p WHERE p.id = registros.paciente_id), "
+                    "cama = (SELECT p.cama FROM pacientes p WHERE p.id = registros.paciente_id) "
+                    "WHERE estacion IS NULL"))
+                if r.rowcount:
+                    hechas.append(f"registros: ubicación base fijada ({r.rowcount})")
+
+        cols_pac = ({c["name"] for c in inspect(con).get_columns("pacientes")}
+                    if "pacientes" in tablas else set())
+        if "acceso" in cols_pac:   # BD muy antigua (antes de v3) sin columna acceso: nada que convertir
             for viejo, (nuevo, estado, calibre) in CONVERSION_ACCESO.items():
                 r = con.execute(
                     text("UPDATE pacientes SET acceso = :nuevo, acceso_estado = :estado, "

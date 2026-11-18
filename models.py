@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint,
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -74,6 +74,11 @@ class Registro(Base):
     transitorio_nombre      = Column(String)
     transitorio_paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=True)
     transitorio_asistencia  = Column(String)
+    # Ubicación del paciente EN ESTA SESIÓN (foto al crear el registro). NULL en
+    # registros antiguos = se usa la ubicación base del paciente. Así un cambio
+    # permanente posterior no altera la hoja de sesiones pasadas.
+    estacion = Column(Integer)
+    cama     = Column(Integer)
 
     sesion               = relationship("Sesion", back_populates="registros")
     paciente             = relationship("Paciente", foreign_keys=[paciente_id])
@@ -95,6 +100,43 @@ class Programacion(Base):
     paciente = relationship("Paciente")
 
     __table_args__ = (UniqueConstraint("fecha", "turno", "paciente_id", name="uq_prog"),)
+
+
+class AsignacionDia(Base):
+    """Cambio de ubicación de UN día (R7): se aplica sobre la asignación base del
+    paciente solo para `fecha`. La ubicación habitual (Paciente.estacion/cama/turno)
+    no cambia; el siguiente día de diálisis vuelve a la distribución habitual.
+
+    tipo:
+      - mover:       paciente habitual del turno en otra cama/estación ese día.
+      - transitorio: paciente que ese día no le tocaba este turno/cama (otro turno,
+                     otro grupo de días o paciente nuevo) ocupa una cama libre.
+      - reemplazo:   el paciente ocupa la cama de `reemplaza_paciente_id`, que ese
+                     día no viene (queda como «H» con suplente en la hoja).
+    Un paciente tiene como máximo un cambio por fecha (en cualquier turno).
+    `grupo` enlaza los dos cambios de un intercambio para deshacerlos juntos.
+    """
+    __tablename__ = "asignaciones_dia"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    fecha                = Column(String, nullable=False)    # YYYY-MM-DD
+    turno                = Column(String, nullable=False)    # M, T, N
+    paciente_id          = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    estacion             = Column(Integer, nullable=False)
+    cama                 = Column(Integer, nullable=False)
+    tipo                 = Column(String, nullable=False)    # mover | transitorio | reemplazo
+    reemplaza_paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=True)
+    grupo                = Column(String, nullable=True)
+    creado_por           = Column(String)
+    creado_en            = Column(DateTime)
+
+    paciente   = relationship("Paciente", foreign_keys=[paciente_id])
+    reemplaza  = relationship("Paciente", foreign_keys=[reemplaza_paciente_id])
+
+    __table_args__ = (
+        UniqueConstraint("fecha", "paciente_id", name="uq_asig_fecha_paciente"),
+        Index("ix_asig_fecha_turno", "fecha", "turno"),
+    )
 
 
 # ── Fase 2 ────────────────────────────────────────────────────────────────────

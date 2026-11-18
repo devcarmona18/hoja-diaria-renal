@@ -269,18 +269,30 @@ function dragLeave(e, tr) { tr.classList.remove("drag-over") }
 function dragDrop(e, tr) {
   e.stopPropagation()
   tr.classList.remove("drag-over")
-  if (_dragRow && _dragRow !== tr) {
-    const parent = tr.parentNode
-    const srcSibling = _dragRow.nextSibling
-    if (srcSibling === tr) {
-      parent.insertBefore(tr, _dragRow)
-    } else {
-      parent.insertBefore(_dragRow, tr)
-      if (srcSibling) parent.insertBefore(tr, srcSibling)
-      else parent.appendChild(tr)
-    }
-  }
+  const origen = _dragRow
   _dragRow = null
+  if (!origen || origen === tr) return
+  // Mover en la hoja = cambio SOLO de este día (R7): intercambia las dos camas en el servidor.
+  if (G.vista === "sesion" && G.sesion && !G.sesion.cerrada && !G.readonly) {
+    moverEnHoja(getReg(+origen.dataset.rid), getReg(+tr.dataset.rid))
+  }
+}
+
+async function moverEnHoja(src, dst) {
+  if (!src || !dst) return
+  const esSuplente = r => r.asistencia === "H" && r.transitorio_paciente
+  if (esSuplente(src) || esSuplente(dst)) {
+    toast("Para mover un suplente use «Programar próxima» o restaure primero", "warn"); return
+  }
+  try {
+    await apiPost("/api/asignaciones", {
+      fecha: G.sesion.fecha, turno: G.sesion.turno, paciente_id: src.paciente_id,
+      estacion: dst.estacion, cama: dst.cama, intercambiar: true,
+    })
+    G.registros = await apiGet(`/api/sesiones/${G.sesion.id}/registros`)
+    renderSesion(_estFiltro)
+    toast(`Camas intercambiadas solo por hoy (${displayCama(dst.cama, dst.estacion)} ↔ ${displayCama(src.cama, src.estacion)})`)
+  } catch (e) { toast(e.message, "err") }
 }
 function dragEnd(e, tr) {
   tr.classList.remove("dragging")
@@ -1023,85 +1035,8 @@ async function reabrirSesion() {
 }
 
 // ── VIEW: PROGRAMACIÓN ────────────────────────────────────────────────────────
-$("btn-programar").addEventListener("click", renderProgramacion)
-
-async function renderProgramacion() {
-  G.vista = "programacion"; updateHeader()
-  const mañana = new Date(G.sesion.fecha); mañana.setDate(mañana.getDate() + 1)
-  const fechaSig = mañana.toISOString().slice(0, 10)
-  const turnoSig = G.sesion.turno
-  const pacientes = G.registros.map(r => r.paciente).filter(Boolean)
-
-  const checkMap = {}, epoMap = {}, hierroMap = {}
-  pacientes.forEach(p => {
-    const reg = G.registros.find(r => r.paciente_id === p.id)
-    checkMap[p.id]  = reg?.asistencia !== "F" && reg?.asistencia !== "NA"
-    epoMap[p.id]    = reg?.epo    || false
-    hierroMap[p.id] = reg?.hierro || false
-  })
-
-  window.toggleIncl   = (pid, v) => { checkMap[pid]  = v }
-  window.toggleEpo    = (pid, v) => { epoMap[pid]    = v }
-  window.toggleHierro = (pid, v) => { hierroMap[pid] = v }
-
-  window.guardarProgramacion = async function () {
-    const fecha = $("prog-fecha").value
-    const turno = document.querySelector("input[name=prog-turno]:checked")?.value
-    if (!fecha || !turno) { toast("Complete fecha y turno", "warn"); return }
-    const items = pacientes.filter(p => checkMap[p.id])
-      .map(p => ({ paciente_id: p.id, epo_programado: epoMap[p.id] || false, hierro_programado: hierroMap[p.id] || false }))
-    try {
-      await apiPost("/api/programacion", { fecha, turno, items })
-      toast(`Programación guardada — ${items.length} pacientes para ${fmtFecha(fecha)} ${TURNOS[turno]}`)
-      renderSesion()
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  const byEst = { 1: [], 2: [], 3: [] }
-  pacientes.forEach(p => byEst[p.estacion]?.push(p))
-  let rows = ""
-  for (const est of [1, 2, 3]) {
-    if (!byEst[est].length) continue
-    rows += `<tr style="background:${EST_COLORS[est]}"><td colspan="4" class="text-white font-bold text-xs py-1 px-3 tracking-wide">ESTACIÓN ${est} — ${EST_LABEL[est].toUpperCase()}</td></tr>`
-    byEst[est].forEach(p => {
-      rows += `<tr class="row-est-${p.estacion}" data-pid="${p.id}">
-        <td><input type="checkbox" class="w-4 h-4 cursor-pointer" ${checkMap[p.id] ? "checked" : ""} onchange="toggleIncl(${p.id},this.checked)" /></td>
-        <td class="font-medium">${p.nombre} <span class="text-slate-400 text-xs">${p.cedula}</span></td>
-        <td class="text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" style="accent-color:#2563eb" ${epoMap[p.id] ? "checked" : ""} onchange="toggleEpo(${p.id},this.checked)" /></td>
-        <td class="text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" style="accent-color:#b45309" ${hierroMap[p.id] ? "checked" : ""} onchange="toggleHierro(${p.id},this.checked)" /></td>
-      </tr>`
-    })
-  }
-
-  app().innerHTML = `
-    <div class="max-w-3xl mx-auto">
-      <div class="bg-white rounded-2xl shadow-xl p-6">
-        <h2 class="text-xl font-bold text-blue-900 mb-1">Programar próxima sesión</h2>
-        <p class="text-slate-500 text-sm mb-5">Basada en sesión ${fmtFecha(G.sesion.fecha)} · ${TURNOS[G.sesion.turno]}</p>
-        <div class="flex flex-wrap gap-4 mb-5">
-          <div>
-            <label class="block text-sm font-semibold text-slate-600 mb-1">Fecha siguiente</label>
-            <input type="date" id="prog-fecha" value="${fechaSig}" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-slate-600 mb-1">Turno</label>
-            <div class="flex gap-2">${["M","T","N"].map(t=>`<label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="prog-turno" value="${t}" ${t===turnoSig?"checked":""} class="accent-blue-700"/><span class="text-sm">${TURNOS[t]}</span></label>`).join("")}</div>
-          </div>
-          <div class="self-end ml-auto">
-            <button onclick="guardarProgramacion()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-2 rounded-lg font-semibold text-sm">Guardar programación</button>
-          </div>
-        </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200">
-          <table class="tbl-prog w-full">
-            <thead><tr><th class="w-10 text-center">Incluir</th><th>Paciente</th><th class="w-20 text-center">EPO</th><th class="w-20 text-center">Fe</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-        <div class="mt-4"><button onclick="renderSesion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-4 py-2 rounded-lg">← Volver</button></div>
-      </div>
-    </div>
-  `
-}
+// La pantalla «Programar próxima» vive en programacion.js (R2/R7).
+$("btn-programar").addEventListener("click", () => renderProgramacion())
 
 // ── VIEW: AUTO-PROGRAMACIÓN EPO/Fe MENSUAL ────────────────────────────────────
 async function renderAutoProgram() {
