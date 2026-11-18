@@ -123,3 +123,5 @@
   .hl7-burbuja, .hl7-burbuja:hover { transition: none; transform: none; }
 }
 @media print { .hl7-flotantes, .hl7-overlay { display: none !important; } }
+
+.hl7-flotantes[hidden] { display: none !important; }

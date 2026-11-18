@@ -114,7 +114,7 @@ async function historialDetalle(sesionId) {
   let rows = ""
   for (const est of [1, 2, 3]) {
     if (!byEst[est].length) continue
-    rows += `<tr style="background:${EST_COLORS[est]}"><td colspan="6" class="text-white text-xs font-bold py-1 px-3">ESTACIÓN ${est} — ${EST_LABEL[est].toUpperCase()}</td></tr>`
+    rows += `<tr style="background:${EST_COLORS[est]}"><td colspan="9" class="text-white text-xs font-bold py-1 px-3">ESTACIÓN ${est} — ${EST_LABEL[est].toUpperCase()}</td></tr>`
     byEst[est].forEach(r => {
       const p = r.paciente
       const asistBadge = r.asistencia === "A"  ? "text-emerald-700 font-bold"
@@ -122,12 +122,16 @@ async function historialDetalle(sesionId) {
                        : r.asistencia === "F"  ? "text-red-600 font-bold"
                        : r.asistencia === "H"  ? "text-amber-600 font-bold"
                        : "text-slate-400"
-      const transTxt = r.transitorio_nombre ? `<span class="text-amber-600 text-xs"> → ${r.transitorio_nombre}</span>` : ""
+      const transTxt = r.transitorio_nombre ? `<span class="text-amber-600 text-xs"> → ${escHtml(r.transitorio_nombre)}</span>` : ""
       rows += `<tr class="row-est-${p.estacion}">
         <td class="text-xs text-slate-400 font-mono">${displayCama(p.cama, p.estacion)}</td>
         <td class="font-medium text-sm">${p.nombre}${transTxt}</td>
         <td class="text-center ${asistBadge}">${r.asistencia || "—"}</td>
+        <td class="text-xs text-center">${fmtPeso(r.peso_entrada)}</td>
+        <td class="text-xs text-center">${fmtPeso(r.peso_salida)}</td>
         <td class="text-xs text-center">${r.perdida_real != null ? r.perdida_real.toFixed(2) + " kg" : "—"}</td>
+        <td class="text-xs text-center whitespace-nowrap">${r.pa_pie_sistolica != null && r.pa_pie_diastolica != null ? r.pa_pie_sistolica + "/" + r.pa_pie_diastolica : "—"}</td>
+        <td class="text-xs text-center">${r.fc ?? "—"}</td>
         <td class="text-xs text-center">${r.ktv != null ? "KtV " + r.ktv.toFixed(2) : "—"}</td>
         <td class="text-xs text-center">${[r.epo?"EPO":"", r.hierro?"Fe":""].filter(Boolean).join(" / ") || "—"}</td>
       </tr>`
@@ -138,11 +142,12 @@ async function historialDetalle(sesionId) {
     `Detalle sesión`,
     `<div class="max-h-96 overflow-y-auto">
       <table class="tbl-labs w-full text-xs">
-        <thead><tr><th class="text-left w-8">#</th><th class="text-left">Paciente</th><th>Estado</th><th>Pérdida</th><th>Kt/V</th><th>Meds</th></tr></thead>
+        <thead><tr><th class="text-left w-8">#</th><th class="text-left">Paciente</th><th>Estado</th><th>P.Ent.</th><th>P.Sal.</th><th>Pérdida</th><th>PA pie</th><th>FC</th><th>Kt/V</th><th>Meds</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`,
-    `<button onclick="closeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">Cerrar</button>`
+    `<button onclick="closeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">Cerrar</button>`,
+    { ancho: true }
   )
 }
 

@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
+from services.pacientes import listar_activos
 
 router = APIRouter()
+
+
+def _paciente_dict(p):
+    """Paciente embebido en el registro: mismos campos que PacienteOut (incluye acceso, ui, estado…)."""
+    return schemas.PacienteOut.model_validate(p).model_dump() if p else None
 
 
 def _build_registro_out(r: models.Registro) -> dict:
@@ -34,43 +40,16 @@ def _build_registro_out(r: models.Registro) -> dict:
         "hierro": bool(r.hierro),
         "observaciones": r.observaciones or "",
         "ktv": r.ktv,
+        "pa_pie_sistolica": r.pa_pie_sistolica,
+        "pa_pie_diastolica": r.pa_pie_diastolica,
+        "fc": r.fc,
         "citrato": bool(r.citrato),
         "heparina_sodica": bool(r.heparina_sodica),
         "transitorio_nombre": r.transitorio_nombre or "",
         "transitorio_paciente_id": r.transitorio_paciente_id,
         "transitorio_asistencia": r.transitorio_asistencia,
-        "transitorio_paciente": {
-            "id":                r.transitorio_paciente.id,
-            "nombre":            r.transitorio_paciente.nombre,
-            "cedula":            r.transitorio_paciente.cedula,
-            "estacion":          r.transitorio_paciente.estacion,
-            "cama":              r.transitorio_paciente.cama,
-            "turno":             r.transitorio_paciente.turno,
-            "peso_seco":         r.transitorio_paciente.peso_seco,
-            "activo":            r.transitorio_paciente.activo,
-            "acceso":            r.transitorio_paciente.acceso,
-            "acceso_cm":         r.transitorio_paciente.acceso_cm,
-            "heparina_unidades": r.transitorio_paciente.heparina_unidades,
-            "tipo_filtro":       r.transitorio_paciente.tipo_filtro,
-            "watson":            r.transitorio_paciente.watson,
-            "medico":            r.transitorio_paciente.medico,
-        } if r.transitorio_paciente else None,
-        "paciente": {
-            "id": r.paciente.id,
-            "nombre": r.paciente.nombre,
-            "cedula": r.paciente.cedula,
-            "estacion": r.paciente.estacion,
-            "cama": r.paciente.cama,
-            "turno": r.paciente.turno,
-            "peso_seco": r.paciente.peso_seco,
-            "activo": r.paciente.activo,
-            "acceso": r.paciente.acceso,
-            "acceso_cm": r.paciente.acceso_cm,
-            "heparina_unidades": r.paciente.heparina_unidades,
-            "tipo_filtro": r.paciente.tipo_filtro,
-            "watson": r.paciente.watson,
-            "medico": r.paciente.medico,
-        } if r.paciente else None,
+        "transitorio_paciente": _paciente_dict(r.transitorio_paciente),
+        "paciente": _paciente_dict(r.paciente),
     }
 
 
@@ -94,7 +73,15 @@ def update_registro(
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada y no se puede modificar")
 
-    for k, v in data.model_dump(exclude_unset=True).items():
+    cambios = data.model_dump(exclude_unset=True)
+
+    # R3: la sistólica debe ser mayor que la diastólica (se compara con lo ya guardado)
+    sis = cambios.get("pa_pie_sistolica", r.pa_pie_sistolica)
+    dia = cambios.get("pa_pie_diastolica", r.pa_pie_diastolica)
+    if sis is not None and dia is not None and sis <= dia:
+        raise HTTPException(422, "La PA sistólica debe ser mayor que la diastólica")
+
+    for k, v in cambios.items():
         setattr(r, k, v)
 
     db.commit()
@@ -183,12 +170,7 @@ def get_or_create_sesion(fecha: str, turno: str, db: Session = Depends(get_db)):
                 hierro=prog.hierro_programado,
             ))
     else:
-        pacientes = (
-            db.query(models.Paciente)
-            .filter_by(turno=turno, activo=True)
-            .order_by(models.Paciente.estacion, models.Paciente.cama)
-            .all()
-        )
+        pacientes = listar_activos(db, turno=turno)
         for p in pacientes:
             db.add(models.Registro(sesion_id=sesion.id, paciente_id=p.id))
 

@@ -55,3 +55,17 @@ try:
     print("Tablas HL7 verificadas (hl7_mensaje, hl7_paciente_id, hl7_borrador_sesion, hl7_auditoria).")
 except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
     print(f"Tablas HL7 no creadas: {e}")
+
+
+# v7 — Pulido de diciembre (R1, R3, R4, R10): columnas nuevas y conversión de los
+# tipos de acceso antiguos. Es idempotente y funciona en SQLite y PostgreSQL;
+# la app también la ejecuta sola al arrancar.
+try:
+    from database import engine as _engine2
+    import migraciones as _migraciones
+
+    for _accion in _migraciones.aplicar(_engine2):
+        print(f"OK  : {_accion}")
+    print("Migración v7 (acceso vascular, PA/FC, UI, estado del paciente) verificada.")
+except Exception as e:
+    print(f"Migración v7 no aplicada: {e}")

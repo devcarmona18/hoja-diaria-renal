@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
 import config
+from services.pacientes import etiqueta_acceso
 
 router = APIRouter()
 
@@ -25,18 +26,13 @@ def _get_api_key() -> str | None:
 
 def _build_context(p: models.Paciente, registros: list, labs: list) -> str:
     """Construye el contexto clínico del paciente para el prompt."""
-    acceso_map = {
-        "CY": "Catéter yugular", "FAV_L": "FAV limpia",
-        "FAV_AR": "FAV alto riesgo", "FAV_ANE": "FAV aneurismática",
-        "F16": "Agujas G16", "F17": "Agujas G17",
-    }
     lines = [
         "=== PACIENTE ===",
         f"Nombre: {p.nombre}",
         f"Turno: {'Mañana' if p.turno == 'M' else 'Tarde' if p.turno == 'T' else 'Noche'}",
         f"Estación: {p.estacion}  Cama: {p.cama + (p.estacion - 1) * 16}",
         f"Peso seco: {p.peso_seco or '—'} kg",
-        f"Acceso vascular: {acceso_map.get(p.acceso or '', p.acceso or '—')}",
+        f"Acceso vascular: {etiqueta_acceso(p)}",
         f"Filtro: {p.tipo_filtro or '—'}",
         f"Heparina: {p.heparina_unidades or '—'} UI/h",
         f"Watson V: {p.watson or '—'} L",
@@ -60,13 +56,16 @@ def _build_context(p: models.Paciente, registros: list, labs: list) -> str:
             if r.peso_entrada and r.peso_salida:
                 perd = f" Pérd:{r.peso_entrada - r.peso_salida:.2f}kg"
             ktv   = f" KtV:{r.ktv:.2f}" if r.ktv else ""
+            pa    = (f" PApie:{r.pa_pie_sistolica}/{r.pa_pie_diastolica}"
+                     if r.pa_pie_sistolica and r.pa_pie_diastolica else "")
+            fc    = f" FC:{r.fc}" if r.fc else ""
             meds  = " EPO" if r.epo else ""
             meds += " Fe"  if r.hierro else ""
             cit   = " CIT" if r.citrato else ""
             hs    = " HS"  if r.heparina_sodica else ""
             trans = f" [Trans:{r.transitorio_nombre}]" if r.transitorio_nombre else ""
             fecha = r.sesion.fecha if r.sesion else "?"
-            lines.append(f"  {fecha} {asist} E:{ent} S:{sal}{perd}{ktv}{meds}{cit}{hs}{trans}")
+            lines.append(f"  {fecha} {asist} E:{ent} S:{sal}{perd}{pa}{fc}{ktv}{meds}{cit}{hs}{trans}")
 
     if labs:
         lines.append("\n=== LABORATORIOS (más reciente primero) ===")
