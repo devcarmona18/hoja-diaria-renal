@@ -3,7 +3,7 @@ import pytest
 
 import models
 from database import SessionLocal
-from tests.helpers_w2a import marcar, paciente_y_mes
+from tests.helpers_w2a import marcar, paciente_y_mes, registro_de
 from services import asistencia as srv
 
 MES = "2025-03"          # 3-mar-2025 es lunes; días LMV: 3, 5, 7, 10, 12, 14
@@ -99,10 +99,12 @@ def test_cerrar_mes_es_inmutable_y_reabrir_se_audita(admin, demo):
         r = admin.post("/api/estadisticas/asistencia/2025/03/cerrar")
         assert r.status_code == 200, r.text
         assert r.json()["cerrado"] is True and r.json()["cierre"]["cerrado_por"]
-        # un cambio posterior en las hojas NO altera lo cerrado
-        marcar_abierto = admin.get(f"/api/sesiones/{FECHAS[0]}/N").json()
-        assert marcar_abierto["cerrada"] is False
-        marcar(admin, FECHAS[0], "N", p["id"], asistencia="NA")
+        # con el mes cerrado sus hojas son de solo lectura (decisión del responsable)
+        hoja = admin.get(f"/api/sesiones/{FECHAS[0]}/N").json()
+        assert hoja["cerrada"] is False and hoja["mes_cerrado"] is True
+        _, reg = registro_de(admin, FECHAS[0], "N", p["id"])
+        r = admin.patch(f"/api/sesiones/registros/{reg['id']}", json={"asistencia": "NA"})
+        assert r.status_code == 409 and r.json()["detail"] == "El mes está cerrado; reábralo para editar"
         _, fila = _fila(admin, p["id"])
         assert (fila["programadas"], fila["asistidas"], fila["porcentaje"]) == (6, 6, 100.0)
         # no se puede cerrar dos veces
@@ -125,6 +127,7 @@ def test_cerrar_mes_es_inmutable_y_reabrir_se_audita(admin, demo):
         assert admin.post("/api/estadisticas/asistencia/2025/03/reabrir", json={"motivo": "x"}).status_code == 422
         r = admin.post("/api/estadisticas/asistencia/2025/03/reabrir", json={"motivo": "Corrección de una falta"})
         assert r.status_code == 200 and r.json()["cerrado"] is False
+        marcar(admin, FECHAS[0], "N", p["id"], asistencia="NA")          # reabierto: se edita
         _, fila = _fila(admin, p["id"])
         assert fila["asistidas"] == 5                                   # de nuevo en vivo
         aud = admin.get("/api/estadisticas/asistencia/2025/03/auditoria").json()

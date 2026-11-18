@@ -95,6 +95,7 @@ class SesionOut(BaseModel):
     fecha: str
     turno: str
     cerrada: bool
+    mes_cerrado: bool = False     # R12: el mes está cerrado -> hoja de solo lectura
     model_config = {"from_attributes": True}
 
 

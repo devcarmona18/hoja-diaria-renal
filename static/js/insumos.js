@@ -149,7 +149,9 @@ function _insPintar() {
           <button onclick="window.print()" class="prog-btn">🖨 Imprimir</button>
           <a href="/api/insumos/pedido.csv?${_insQuery()}" class="prog-btn ins-link" download>⬇ CSV</a>
           <button onclick="renderInsumosReglas()" class="prog-btn">Reglas</button>
-          ${conf
+          ${d.mes_cerrado
+            ? `<span class="badge-mes-cerrado self-center" role="status" title="El mes está cerrado; reábralo para editar"><span aria-hidden="true">🔒</span> Mes cerrado</span>`
+            : conf
             ? `<button onclick="_insAnular()" class="solo-admin prog-btn ins-btn-peligro">Anular confirmación</button>`
             : `<button onclick="_insConfirmar()" class="solo-admin ins-btn-confirmar">Confirmar / Enviar</button>`}
           <button onclick="goHome()" class="prog-btn">← Inicio</button>

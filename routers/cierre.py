@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
 from services import hoja as srv_hoja
+from services.bloqueo_mes import exigir_abierto
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ def cerrar_sesion(sesion_id: int, db: Session = Depends(get_db)):
     sesion = db.get(models.Sesion, sesion_id)
     if not sesion:
         raise HTTPException(404, "Sesión no encontrada")
+    exigir_abierto(db, sesion.fecha)   # R12
     if sesion.cerrada:
         raise HTTPException(400, "La sesión ya está cerrada")
     sesion.cerrada = True
@@ -61,6 +63,7 @@ def reabrir_sesion(sesion_id: int, db: Session = Depends(get_db)):
     sesion = db.get(models.Sesion, sesion_id)
     if not sesion:
         raise HTTPException(404, "Sesión no encontrada")
+    exigir_abierto(db, sesion.fecha)   # R12: con el mes cerrado no se reabre un día
     sesion.cerrada = False
     srv_hoja.borrar_snapshot(db, sesion_id)   # al reabrir vuelve a mostrar los datos vivos
     db.commit()

@@ -22,6 +22,7 @@ import hoja_dia as hd
 import models
 import schemas
 from database import get_db
+from services.bloqueo_mes import exigir_abierto, mes_cerrado
 
 router = APIRouter()
 
@@ -84,7 +85,8 @@ def _hoja_out(db: Session, fecha: str, turno: str) -> dict:
         "dia_semana": hd.DIA_NOMBRE[f.weekday()], "grupo_dias": hd.grupo_del_dia(f),
         "programado": hoja.programado,
         "sesion": {"id": sesion.id, "cerrada": bool(sesion.cerrada)} if sesion else None,
-        "editable": not (sesion and sesion.cerrada),
+        "mes_cerrado": mes_cerrado(db, fecha),                       # R12
+        "editable": not (sesion and sesion.cerrada) and not mes_cerrado(db, fecha),
         "puestos": puestos,
         "desplazados": [{"paciente": _pac(q), "estacion": e, "cama": c,
                          "cama_global": hd.cama_global(e, c),
@@ -110,6 +112,13 @@ def _validar(fecha: str, turno: str) -> None:
     hd.parse_fecha(fecha)
     if turno not in hd.TURNOS:
         raise hd.Conflicto("Turno inválido (use M, T o N)")
+
+
+def _exigir_mes_de(db: Session, asignacion_id: int) -> None:
+    """R12: un cambio de un día de un mes cerrado no se deshace ni se vuelve permanente."""
+    a = db.get(models.AsignacionDia, asignacion_id)
+    if a is not None:
+        exigir_abierto(db, a.fecha)
 
 
 def _ejecutar(db: Session, fn):
@@ -207,6 +216,7 @@ def crear_cambio(data: AsignacionCrear, request: Request, db: Session = Depends(
 
     def op():
         _validar(data.fecha, data.turno)
+        exigir_abierto(db, data.fecha)   # R12
         if data.tipo == "reemplazo":
             if data.permanente:
                 raise hd.Conflicto("Un reemplazo es solo por un día; no puede ser permanente.")
@@ -229,6 +239,7 @@ def crear_cambio(data: AsignacionCrear, request: Request, db: Session = Depends(
 @router.delete("/{asignacion_id}")
 def deshacer_cambio(asignacion_id: int, db: Session = Depends(get_db)):
     def op():
+        _exigir_mes_de(db, asignacion_id)
         fecha, turno = hd.deshacer(db, asignacion_id)
         return _hoja_out(db, fecha, turno)
     return _ejecutar(db, op)
@@ -237,6 +248,7 @@ def deshacer_cambio(asignacion_id: int, db: Session = Depends(get_db)):
 @router.post("/{asignacion_id}/permanente")
 def hacer_permanente(asignacion_id: int, db: Session = Depends(get_db)):
     def op():
+        _exigir_mes_de(db, asignacion_id)
         fecha, turno = hd.hacer_permanente(db, asignacion_id)
         return _hoja_out(db, fecha, turno)
     return _ejecutar(db, op)

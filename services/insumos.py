@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session, joinedload
 import hoja_dia as hd
 import models
 from services import insumos_reglas as ir
+from services.bloqueo_mes import exigir_abierto
 from services.pacientes import esta_activo, etiqueta_acceso
 
 SECCIONES = ("pedido", "adicional", "devolucion", "revisar")
@@ -396,6 +397,7 @@ def confirmar(db: Session, fecha_pedido: str, usuario: str, fecha_sesiones: Opti
     if pedido_confirmado(db, fecha_pedido):
         raise ErrorPedido("El pedido de ese día ya está confirmado.")
     res = generar(db, fecha_pedido, fecha_sesiones)
+    exigir_abierto(db, res["fecha_pedido"], res["fecha_sesiones"])   # R12: mes cerrado -> 409
     reglas: ir.Reglas = res["_reglas"]
     pedido = models.PedidoInsumos(
         fecha_pedido=res["fecha_pedido"], fecha_sesiones=res["fecha_sesiones"], estado="confirmado",
@@ -426,6 +428,7 @@ def anular(db: Session, fecha_pedido: str) -> None:
     p = pedido_confirmado(db, fecha_pedido)
     if not p:
         raise ErrorPedido("No hay pedido confirmado ese día.")
+    exigir_abierto(db, p.fecha_pedido, p.fecha_sesiones)   # R12
     db.delete(p)
 
 

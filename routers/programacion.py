@@ -4,6 +4,7 @@ from datetime import date
 import calendar as cal_mod
 import models, schemas
 from database import get_db
+from services.bloqueo_mes import exigir_abierto
 
 router = APIRouter()
 
@@ -53,6 +54,7 @@ def get_programacion(fecha: str, turno: str, db: Session = Depends(get_db)):
 @router.post("", response_model=list[schemas.ProgramacionOut], status_code=201)
 def guardar_programacion(data: schemas.ProgramacionBulk, db: Session = Depends(get_db)):
     """Reemplaza la programación de una fecha+turno con la lista enviada."""
+    exigir_abierto(db, data.fecha)   # R12
     db.query(models.Programacion).filter_by(fecha=data.fecha, turno=data.turno).delete()
 
     nuevos = []
@@ -101,6 +103,7 @@ def auto_programar_mes(data: schemas.AutoMesInput, db: Session = Depends(get_db)
         raise HTTPException(400, "Turno inválido")
     if not (1 <= data.mes <= 12):
         raise HTTPException(400, "Mes inválido")
+    exigir_abierto(db, f"{data.anio:04d}-{data.mes:02d}")   # R12
 
     pacientes = (
         db.query(models.Paciente)

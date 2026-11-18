@@ -144,6 +144,10 @@ function openModal(title, bodyHTML, footerHTML, opts = {}) {
 }
 function closeModal() { $("modal-overlay").classList.add("hidden") }
 
+// R12: con el mes cerrado la hoja es de solo lectura (el servidor responde 409)
+function hojaBloqueada() { return !!(G.sesion && (G.sesion.cerrada || G.sesion.mes_cerrado)) || G.readonly }
+const AVISO_MES_CERRADO = "El mes está cerrado; reábralo para editar"
+
 // ── Header ────────────────────────────────────────────────────────────────────
 function updateHeader() {
   const hasSesion = !!G.sesion
@@ -159,6 +163,7 @@ function updateHeader() {
     $("header-fecha").textContent = fmtFecha(G.sesion.fecha)
     $("header-turno").textContent = TURNOS[G.sesion.turno]
     $("header-cerrada").classList.toggle("hidden", !G.sesion.cerrada)
+    $("header-mes-cerrado")?.classList.toggle("hidden", !G.sesion.mes_cerrado)   // R12
   }
 }
 
@@ -279,7 +284,7 @@ function dragDrop(e, tr) {
   _dragRow = null
   if (!origen || origen === tr) return
   // Mover en la hoja = cambio SOLO de este día (R7): intercambia las dos camas en el servidor.
-  if (G.vista === "sesion" && G.sesion && !G.sesion.cerrada && !G.readonly) {
+  if (G.vista === "sesion" && G.sesion && !hojaBloqueada()) {
     moverEnHoja(getReg(+origen.dataset.rid), getReg(+tr.dataset.rid))
   }
 }
@@ -310,7 +315,7 @@ function dragEnd(e, tr) {
 function renderSesion(estFiltro = 0) {
   _estFiltro = estFiltro
   G.vista = "sesion"; updateHeader()
-  const cerrada = G.sesion.cerrada || G.readonly
+  const cerrada = hojaBloqueada()
 
   const tabsCfg = [
     { est: 0, label: "Todas",                    on: "tab-todas",   off: "tab-todas-off" },
@@ -375,7 +380,9 @@ function renderSesion(estFiltro = 0) {
   app().innerHTML = `
     <div class="max-w-full">
       <div class="flex flex-wrap gap-2 mb-3 print:hidden">${tabs}
-        ${cerrada ? '<span class="ml-auto text-red-600 font-bold text-sm self-center">SESIÓN CERRADA</span>' : ""}
+        ${G.sesion.mes_cerrado
+          ? `<span class="ml-auto badge-mes-cerrado self-center" role="status" title="${AVISO_MES_CERRADO}"><span aria-hidden="true">🔒</span> Mes cerrado · solo lectura</span>`
+          : cerrada ? '<span class="ml-auto text-red-600 font-bold text-sm self-center">SESIÓN CERRADA</span>' : ""}
       </div>
 
       <div class="flex flex-wrap gap-2 mb-3 text-sm print:hidden">
@@ -919,7 +926,7 @@ function refreshRow(id) {
   const tr = document.querySelector(`tr[data-rid="${id}"]`); if (!tr) return
   const tmp = document.createElement("tbody")
   const isSuplente = r.asistencia === "H" && r.transitorio_paciente
-  const bloq = G.sesion.cerrada || G.readonly
+  const bloq = hojaBloqueada()
   tmp.innerHTML = isSuplente ? buildRowSuplente(r, bloq) : buildRow(r, bloq)
   const newTr = tmp.firstElementChild
   if (newTr) tr.replaceWith(newTr)
@@ -965,12 +972,15 @@ async function renderCierre() {
           <div>
             <h2 class="text-xl font-bold text-blue-900">Cierre de sesión</h2>
             <p class="text-slate-500 text-sm mt-0.5">${fmtFecha(sesion.fecha)} · ${TURNOS[sesion.turno]}
-              ${sesion.cerrada ? '<span class="ml-2 text-red-600 font-semibold text-xs">CERRADA</span>' : ""}</p>
+              ${sesion.cerrada ? '<span class="ml-2 text-red-600 font-semibold text-xs">CERRADA</span>' : ""}
+              ${sesion.mes_cerrado ? '<span class="ml-2 badge-mes-cerrado"><span aria-hidden="true">🔒</span> Mes cerrado</span>' : ""}</p>
           </div>
           <div class="flex gap-2 print:hidden">
             <button onclick="window.print()"
               class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg font-medium">Imprimir</button>
-            ${G.readonly ? "" : !sesion.cerrada
+            ${G.readonly ? "" : sesion.mes_cerrado
+              ? `<span class="text-xs text-slate-500 self-center">${AVISO_MES_CERRADO}</span>`
+              : !sesion.cerrada
               ? `<button onclick="cerrarSesion()" class="bg-red-600 hover:bg-red-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Cerrar sesión definitivo</button>`
               : `<button onclick="reabrirSesion()" class="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Reabrir sesión</button>`}
           </div>

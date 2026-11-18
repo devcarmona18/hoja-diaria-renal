@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 import models, schemas
 import hoja_dia
 from database import get_db
+from services.bloqueo_mes import exigir_abierto, mes_cerrado
 
 router = APIRouter()
 
@@ -71,6 +72,7 @@ def update_registro(
         raise HTTPException(404, "Registro no encontrado")
 
     sesion = db.get(models.Sesion, r.sesion_id)
+    exigir_abierto(db, sesion.fecha)   # R12: mes cerrado -> 409
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada y no se puede modificar")
 
@@ -116,6 +118,7 @@ def agregar_paciente_a_sesion(
     sesion = db.get(models.Sesion, sesion_id)
     if not sesion:
         raise HTTPException(404, "Sesion no encontrada")
+    exigir_abierto(db, sesion.fecha)   # R12
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada")
     pac = db.get(models.Paciente, paciente_id)
@@ -154,8 +157,10 @@ def get_or_create_sesion(fecha: str, turno: str, db: Session = Depends(get_db)):
 
     sesion = db.query(models.Sesion).filter_by(fecha=fecha, turno=turno).first()
     if sesion:
+        sesion.mes_cerrado = mes_cerrado(db, fecha)   # R12: la UI la muestra bloqueada
         return sesion
 
+    exigir_abierto(db, fecha)   # R12: no se crean hojas nuevas en un mes cerrado
     sesion = models.Sesion(fecha=fecha, turno=turno)
     db.add(sesion)
     db.flush()

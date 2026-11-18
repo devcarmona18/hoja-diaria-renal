@@ -17,6 +17,7 @@ from routers import archivo, labs  # R13
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 from routers import asignaciones  # R2/R7: programar el día siguiente, cambios de un día
 from routers import insumos  # R5/R6: pedido de insumos
+from services.bloqueo_mes import MesCerrado  # R12: mes cerrado = hojas de solo lectura
 
 log = logging.getLogger("uvicorn.error")
 
@@ -54,6 +55,12 @@ app.add_middleware(
 )
 
 app.include_router(auth.router,          prefix="/api/auth",          tags=["auth"])
+@app.exception_handler(MesCerrado)
+async def _mes_cerrado(request: Request, exc: MesCerrado):
+    """R12: cualquier escritura sobre una hoja de un mes cerrado -> 409."""
+    return JSONResponse(status_code=409, content={"detail": str(exc), "codigo": "mes_cerrado", "mes": exc.mes})
+
+
 app.include_router(pacientes.router,     prefix="/api/pacientes",     tags=["pacientes"])
 app.include_router(sesiones.router,      prefix="/api/sesiones",      tags=["sesiones"])
 app.include_router(cierre.router,        prefix="/api/cierre",        tags=["cierre"])

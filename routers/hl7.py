@@ -28,6 +28,7 @@ import config
 import models
 import schemas
 from database import get_db
+from services.bloqueo_mes import exigir_abierto
 from hl7 import firma, mapeo as hl7_mapeo
 from hl7.parser import ErrorHL7, parsear
 from models_hl7 import Hl7Auditoria, Hl7BorradorSesion, Hl7Mensaje, Hl7PacienteId, ahora_iso
@@ -335,6 +336,7 @@ def confirmar_borrador(borrador_id: int, data: ConfirmarInput, request: Request,
     fecha, turno = data.fecha or b.fecha, data.turno or b.turno
     if not fecha or not turno:
         raise HTTPException(422, "Indique la fecha y el turno de la sesión")
+    exigir_abierto(db, fecha)   # R12: mes cerrado -> 409
 
     # Sesión del día con la lógica existente (la crea igual que al abrir la hoja).
     sesion = db.query(models.Sesion).filter_by(fecha=fecha, turno=turno).first()

@@ -62,6 +62,7 @@ Campo **estado**: activo / inactivo (motivo: hospitalizado u otro). Los inactivo
 - Por paciente y mes: **días asistidos / días que le tocaban**; la barra de % llega a 100 % si asistió a todas sus sesiones programadas del mes.
 - Guardar el **registro mensual** (cierre de mes) porque con esto se factura.
 - Consultar cualquier mes: cuántos asistieron, totales.
+- **Mes cerrado = hojas de solo lectura** (decisión del responsable). Con el cierre de mes vigente, TODAS las hojas diarias de ese mes quedan bloqueadas: editar registros, agregar pacientes, cerrar o reabrir un día, crear una hoja nueva, programación EPO/Fe (del día o auto-programación del mes), cambios de un día (crear, deshacer, volver permanente), confirmar o anular el pedido de insumos (fecha del pedido o de las sesiones en ese mes) y limpiar el mes responden **409** «El mes está cerrado; reábralo para editar». **Reabrir el mes** (solo admin, con motivo, auditado) las desbloquea. En la UI la hoja muestra el candado «🔒 Mes cerrado» y las entradas quedan deshabilitadas (también en «Programar próxima» y «Pedido de insumos»).
 
 ## R13. Panel clínico / laboratorios
 - Filtrar pacientes por estado del resultado (bajo / normal / alto / muy alto), p. ej. Hb baja.

@@ -605,3 +605,11 @@ button:disabled, .btn-foco:disabled { opacity: .4; cursor: not-allowed; }
 .btn-foco.bg-red-700:hover { background: #991b1b; }
 .btn-foco.bg-emerald-700:hover { background: #065f46; }
 .btn-foco.bg-amber-600:hover { background: #b45309; }
+
+/* R12: hoja de un mes cerrado (solo lectura) */
+.badge-mes-cerrado {
+  display: inline-flex; align-items: center; gap: .25rem;
+  background: #7c2d12; color: #fff; font-size: .75rem; font-weight: 600;
+  padding: .125rem .5rem; border-radius: .375rem; white-space: nowrap;
+}
+@media print { .badge-mes-cerrado { background: none; color: #000; border: 1px solid #000; } }

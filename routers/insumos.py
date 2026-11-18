@@ -28,6 +28,7 @@ import config
 import hoja_dia as hd
 import models
 from database import get_db
+from services.bloqueo_mes import mes_de, meses_cerrados
 from services import insumos as svc
 from services import insumos_reglas as ir
 
@@ -51,7 +52,9 @@ def _datos(db: Session, fecha: Optional[str], fecha_sesiones: Optional[str],
         res = svc.ver(db, fecha or date.today().isoformat(), fecha_sesiones)
     except (svc.ErrorPedido, hd.Conflicto) as e:
         raise HTTPException(400, str(e))
-    return svc.serializar(res, turno, estacion)
+    out = svc.serializar(res, turno, estacion)
+    out["mes_cerrado"] = meses_cerrados(db, [mes_de(out.get("fecha_pedido")), mes_de(out.get("fecha_sesiones"))]) != set()   # R12
+    return out
 
 
 Turno = Optional[Literal["M", "T", "N"]]

@@ -90,6 +90,8 @@ function progDibujar(enfocarPid = null) {
 
   const avisoBloq = G.readonly
     ? `<div class="prog-aviso mb-3">Modo demo: solo lectura. Puede consultar y buscar, pero no hacer cambios.</div>`
+    : h.mes_cerrado
+      ? `<div class="prog-aviso mb-3" role="status"><span class="badge-mes-cerrado"><span aria-hidden="true">🔒</span> Mes cerrado</span> El mes está cerrado; reábralo para editar.</div>`
     : !h.editable
       ? `<div class="prog-aviso mb-3">La hoja de este día y turno ya está <strong>cerrada</strong>: no admite cambios.</div>`
       : h.sesion
