@@ -30,6 +30,10 @@ class PacienteBase(BaseModel):
     epo_mensual: Optional[float] = None
     epo_dosis: Optional[float] = None
     hierro_mensual: Optional[int] = None
+    # R5/R6 pedido de insumos
+    adicional: Optional[bool] = None              # vacío = no
+    citrato: Optional[bool] = None                # CY: usa citrato
+    heparina_sodica: Optional[bool] = None        # CY: usa heparina sódica
 
 
 class PacienteCreate(PacienteBase):
@@ -61,6 +65,9 @@ class PacienteCreate(PacienteBase):
             self.acceso_cm = None
         else:
             self.acceso_estado = self.acceso_calibre = self.acceso_sitio = self.acceso_cm = None
+        # R5/R6: citrato / heparina sódica solo aplican al catéter (CY)
+        if self.acceso != "CY":
+            self.citrato = self.heparina_sodica = None
         # R10: el motivo solo aplica a pacientes inactivos
         if self.activo:
             self.motivo_inactivo = None
@@ -110,6 +117,7 @@ class RegistroUpdate(BaseModel):
     transitorio_nombre: Optional[str] = None
     transitorio_paciente_id: Optional[int] = None
     transitorio_asistencia: Optional[str] = None
+    adicional: Optional[bool] = None   # R6: adicional solo de esta sesión
 
 
 class RegistroOut(BaseModel):
@@ -131,6 +139,7 @@ class RegistroOut(BaseModel):
     fc: Optional[int] = None
     citrato: bool = False
     heparina_sodica: bool = False
+    adicional: bool = False
     transitorio_nombre: str = ""
     paciente: Optional[PacienteOut] = None
     model_config = {"from_attributes": True}

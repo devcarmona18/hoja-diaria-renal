@@ -38,6 +38,7 @@ En muchas unidades renales el control diario se lleva en planillas impresas o en
 - **Cierre del día:** resumen por estación listo para imprimir con firmas, y bloqueo de la sesión una vez cerrada.
 - **Programación de EPO y hierro:** programación de la siguiente sesión y autoprogramación mensual según la dosis de cada paciente.
 - **Programar el día siguiente:** la misma hoja de estaciones y camas (arrastrar y soltar, reemplazos, transitorios y buscador). Los cambios aplican **solo a ese día**; «Cambio permanente» actualiza la cama habitual sin alterar las hojas pasadas.
+- **Pedido de insumos:** se hace un día antes para las sesiones del próximo día de diálisis (solo pacientes activos), con reglas por acceso vascular editables (FAV, CY, citrato / heparina sódica), secciones de adicionales, devoluciones y casos a revisar, totales por insumo, impresión A4, CSV y foto inmutable al confirmar. Detalles en [`docs/insumos.md`](docs/insumos.md).
 - **Gestión de pacientes (CRUD):** acceso vascular, filtro, heparina, volumen de Watson, médico tratante y días de diálisis.
 - **Laboratorios:** registro por paciente (Hb, PTH, ferritina, creatinina…) con gráficas de evolución (Chart.js) y panel con semáforo de colores por rango.
 - **Historial y estadísticas** de asistencia por paciente y por mes.

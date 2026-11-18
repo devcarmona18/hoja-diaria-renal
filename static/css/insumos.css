@@ -1,0 +1,85 @@
+/* ── Pedido de insumos (R5/R6) ───────────────────────────────────────────── */
+.menu-insumos:hover { background: #fff7ed; }
+
+.ins-h3 { font-size: 1rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
+.ins-cuenta {
+  display: inline-block; min-width: 1.6rem; padding: 0 6px; border-radius: 9999px; text-align: center;
+  font-size: 0.75rem; background: #e2e8f0; color: #334155;
+}
+.ins-avisos > * + * { margin-top: 0.5rem; }
+.ins-fecha { width: 11rem; }
+.ins-link { display: inline-block; text-decoration: none; }
+.ins-json { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; min-height: 22rem; white-space: pre; }
+.ins-lista { margin: 0.25rem 0 0 1.25rem; list-style: disc; font-size: 0.8rem; }
+.ins-detalles summary { cursor: pointer; color: #1d4ed8; font-size: 0.8rem; }
+
+.ins-chip {
+  padding: 3px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  border: 1px solid #cbd5e1; background: #fff; color: #475569; white-space: nowrap;
+}
+.ins-chip:hover { border-color: #60a5fa; }
+.ins-chip-on { background: #1e40af; color: #fff; border-color: #1e40af; }
+.ins-chip:focus-visible, .ins-btn-confirmar:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+.ins-estado { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; }
+.ins-estado-ok { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.ins-estado-borrador { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+
+.ins-btn-confirmar {
+  padding: 3px 12px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  background: #15803d; color: #fff; border: 1px solid #15803d;
+}
+.ins-btn-confirmar:hover { background: #166534; }
+.ins-btn-peligro { border-color: #dc2626; color: #991b1b; background: #fef2f2; }
+.ins-btn-peligro:hover { background: #fee2e2; border-color: #dc2626; }
+
+.ins-tabla td { vertical-align: top; }
+.ins-tabla .w-24 { width: 6rem; }
+.ins-tabla .w-40 { width: 10rem; }
+.ins-tabla .w-48 { width: 12rem; }
+.ins-item {
+  display: inline-block; margin: 1px 4px 1px 0; padding: 1px 6px; border-radius: 4px;
+  background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 0.72rem; white-space: nowrap;
+}
+.ins-item-det { color: #64748b; font-size: 0.68rem; }
+.ins-alerta {
+  display: inline-block; margin: 1px 0; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+  background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;
+}
+.ins-totales tbody tr:nth-child(even) td { background: #f8fafc; }
+
+.ins-sec-pedido     { border-top: 4px solid #1e40af; }
+.ins-sec-adicional  { border-top: 4px solid #7c3aed; }
+.ins-sec-devolucion { border-top: 4px solid #d97706; }
+.ins-sec-revisar    { border-top: 4px solid #dc2626; }
+
+/* Adicional en la hoja diaria */
+.adic-toggle { display: inline-flex; align-items: center; gap: 2px; font-size: 0.62rem; color: #6d28d9; cursor: pointer; white-space: nowrap; }
+.adic-toggle input { width: 0.7rem; height: 0.7rem; }
+/* discreta hasta que se usa (sin ocultarla: en el celular no hay «hover») */
+.adic-toggle:not(:has(input:checked)) { opacity: 0.45; }
+tr:hover .adic-toggle, .adic-toggle:focus-within { opacity: 1; }
+.adic-chip {
+  display: inline-block; padding: 0 5px; border-radius: 9999px; font-size: 0.6rem; font-weight: 700;
+  background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; white-space: nowrap;
+}
+
+.print-only { display: none; }
+.ins-firmas { grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 2.5rem; }
+.ins-firmas > div { border-top: 1px solid #334155; padding-top: 4px; text-align: center; font-size: 0.75rem; }
+
+/* Impresión A4 */
+@media print {
+  @page { size: A4 portrait; margin: 12mm 10mm; }
+  .ins-pagina { max-width: none !important; }
+  .ins-pagina > * { box-shadow: none !important; border-radius: 0 !important; padding: 0 0 8px 0 !important; }
+  .ins-pagina section { break-inside: auto; border-top-width: 2px; padding-top: 6px !important; }
+  .ins-pagina tr { break-inside: avoid; }
+  .ins-tabla { font-size: 9.5px; }
+  .ins-tabla th { background: #e2e8f0 !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ins-tabla td, .ins-tabla th { padding: 2px 4px !important; }
+  .ins-item { border: none; background: none; padding: 0 3px 0 0; font-size: 9px; }
+  .ins-alerta { border: 1px solid #991b1b; }
+  .print-only { display: grid; }
+  .row-est-1, .row-est-2, .row-est-3 { background: none !important; }
+}

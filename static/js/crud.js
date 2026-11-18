@@ -237,6 +237,15 @@ function _formPaciente(p = null) {
           <select id="f-acceso-sitio" class="form-input form-select">${sitioOpts}</select>
         </div>
       </div>
+      <!-- R5/R6: el catéter con citrato o heparina sódica cambia el pedido de insumos -->
+      <div id="grp-cy-sellado" class="flex gap-4 ${p?.acceso === "CY" ? "" : "hidden"}">
+        <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+          <input type="checkbox" id="f-citrato" class="w-4 h-4" ${p?.citrato ? "checked" : ""} /> Citrato
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+          <input type="checkbox" id="f-heparina-sodica" class="w-4 h-4" ${p?.heparina_sodica ? "checked" : ""} /> Heparina sódica
+        </label>
+      </div>
       <div class="grid grid-cols-2 gap-3 ${p?.acceso === "FAV" ? "" : "hidden"}" id="grp-fav-extra">
         <div>
           <label class="form-label" for="f-acceso-calibre">Calibre de aguja</label>
@@ -315,6 +324,12 @@ function _formPaciente(p = null) {
       </div>
       <p id="epo-preview" class="text-xs text-blue-600 font-medium min-h-[1rem]"></p>
 
+      <div class="flex items-center gap-2 mt-1">
+        <input type="checkbox" id="f-adicional" class="w-4 h-4" ${p?.adicional ? "checked" : ""} />
+        <label for="f-adicional" class="text-sm text-slate-600 cursor-pointer">Paciente adicional
+          <span class="text-xs text-slate-400">(sus insumos se piden el día que llega)</span></label>
+      </div>
+
       ${p ? `<div class="flex items-center gap-2 mt-1">
         <input type="checkbox" id="f-activo" ${p.activo ? "checked" : ""} class="w-4 h-4" onchange="_toggleMotivo()" />
         <label for="f-activo" class="text-sm text-slate-600 cursor-pointer">Paciente activo</label>
@@ -352,6 +367,7 @@ function _toggleAcceso() {
   $("grp-fav-estado").classList.toggle("hidden", acceso !== "FAV")
   $("grp-fav-extra").classList.toggle("hidden", acceso !== "FAV")
   $("grp-cy-sitio").classList.toggle("hidden", acceso !== "CY")
+  $("grp-cy-sellado")?.classList.toggle("hidden", acceso !== "CY")
   $("f-acceso-cm-group").classList.toggle("hidden", !(acceso === "FAV" && $("f-acceso-estado")?.value === "aneurismatica"))
 }
 
@@ -428,6 +444,10 @@ function _leerFormulario() {
     heparina_ui_kg: hepUiKg,
     heparina_unidades: hepUn, tipo_filtro: filtro, medico,
     dias, epo_mensual: epoMensual, epo_dosis: epoDosis, hierro_mensual: hierroMens,
+    // R5/R6 pedido de insumos (vacío = no)
+    adicional: $("f-adicional")?.checked ? true : null,
+    citrato: acceso === "CY" ? !!$("f-citrato")?.checked : null,
+    heparina_sodica: acceso === "CY" ? !!$("f-heparina-sodica")?.checked : null,
   }
   const activoChk = $("f-activo")
   if (activoChk) {

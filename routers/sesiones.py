@@ -45,6 +45,7 @@ def _build_registro_out(r: models.Registro) -> dict:
         "fc": r.fc,
         "citrato": bool(r.citrato),
         "heparina_sodica": bool(r.heparina_sodica),
+        "adicional": bool(r.adicional),
         "transitorio_nombre": r.transitorio_nombre or "",
         "transitorio_paciente_id": r.transitorio_paciente_id,
         "transitorio_asistencia": r.transitorio_asistencia,

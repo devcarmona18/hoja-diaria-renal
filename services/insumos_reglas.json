@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "descripcion": "Reglas por defecto del pedido de insumos (R5/R6). Editables por el administrador en «Pedido de insumos → Reglas».",
+  "insumos": {
+    "kit_fistula":           {"nombre": "Kit de fístula",              "unidad": "kit"},
+    "aguja_fav_{calibre}":   {"nombre": "Aguja de fístula calibre {calibre}", "unidad": "unidad"},
+    "linea":                 {"nombre": "Línea arteriovenosa",         "unidad": "unidad"},
+    "ssn_1000":              {"nombre": "SSN 0,9 % 1000 mL",           "unidad": "bolsa"},
+    "filtro_{filtro}":       {"nombre": "Filtro {filtro}",             "unidad": "unidad"},
+    "kit_cateter":           {"nombre": "Kit de catéter",              "unidad": "kit"},
+    "guantes_esteriles_6_5": {"nombre": "Guantes estériles 6.5",       "unidad": "unidad"},
+    "aposito_iv3000":        {"nombre": "Apósito IV3000",              "unidad": "unidad"},
+    "tego":                  {"nombre": "Tego",                        "unidad": "unidad"},
+    "tapas_luer_lock":       {"nombre": "Tapas luer-lock",             "unidad": "empaque", "detalle": "1 empaque (2 tapas)"}
+  },
+  "faltantes": {
+    "calibre": "Calibre faltante",
+    "filtro": "Filtro faltante"
+  },
+  "reglas": [
+    {"insumo": "kit_fistula",         "si": {"acceso": ["FAV"]}, "cantidad": 1},
+    {"insumo": "aguja_fav_{calibre}", "si": {"acceso": ["FAV"]}, "cantidad": 2},
+    {"insumo": "linea",               "si": {"acceso": ["FAV"]}, "cantidad": 1},
+    {"insumo": "ssn_1000",            "si": {"acceso": ["FAV"]}, "cantidad": 1},
+    {"insumo": "filtro_{filtro}",     "si": {"acceso": ["FAV"]}, "cantidad": 1},
+
+    {"insumo": "kit_cateter",         "si": {"acceso": ["CY"]},  "cantidad": 1},
+    {"insumo": "linea",               "si": {"acceso": ["CY"]},  "cantidad": 1},
+    {"insumo": "ssn_1000",            "si": {"acceso": ["CY"]},  "cantidad": 1},
+    {"insumo": "filtro_{filtro}",     "si": {"acceso": ["CY"]},  "cantidad": 1},
+    {"insumo": "guantes_esteriles_6_5", "si": {"acceso": ["CY"]}, "cantidad": [
+      {"si": {"citrato_o_heparina_sodica": true}, "cantidad": 2},
+      {"si": {"dia_semana": ["lunes", "martes"]}, "cantidad": 1},
+      {"cantidad": 0}
+    ]},
+    {"insumo": "aposito_iv3000",      "si": {"acceso": ["CY"], "dia_semana": ["lunes", "martes"]}, "cantidad": 1},
+    {"insumo": "tego",                "si": {"acceso": ["CY"], "citrato_o_heparina_sodica": false}, "cantidad": 2},
+    {"insumo": "tapas_luer_lock",     "si": {"acceso": ["CY"], "citrato_o_heparina_sodica": true},  "cantidad": 1}
+  ]
+}
