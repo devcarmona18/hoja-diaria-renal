@@ -1,7 +1,7 @@
 /* ============================================================
    archivo.js — R13: lista de pacientes archivados
    El paciente archivado sale de listas, hojas, programación y pedidos.
-   Aquí aparece ARCHIVO_DIAS días y se puede restaurar (admin); después sale
+   Aquí aparece ARCHIVO_DIAS días (180 por defecto) y se puede restaurar (admin); después sale
    solo de esta lista: sus sesiones, labs y asistencia nunca se borran.
    Depende de: app.js, crud.js
    ============================================================ */

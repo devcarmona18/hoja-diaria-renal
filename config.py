@@ -59,7 +59,7 @@ HL7_MAPEO_PATH = os.getenv("HL7_MAPEO_PATH", "")
 # Días que un paciente archivado sigue apareciendo en la lista «Archivados» (y que
 # se puede restaurar). Pasado el plazo solo desaparece del LISTADO: sus sesiones,
 # laboratorios y asistencia nunca se borran.
-ARCHIVO_DIAS = int(os.getenv("ARCHIVO_DIAS") or 60)
+ARCHIVO_DIAS = int(os.getenv("ARCHIVO_DIAS") or 180)   # 6 meses
 
 # ── R13: notificaciones a Microsoft Teams (APAGADAS por defecto) ─────────────
 # Con TEAMS_ENABLED=false no se hace NINGUNA llamada HTTP saliente.

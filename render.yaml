@@ -27,3 +27,5 @@ services:
         value: "false"
       - key: HL7_BRIDGE_SECRET  # solo se usa si HL7_ENABLED=true
         sync: false
+      - key: ARCHIVO_DIAS       # R13: días en «Archivados» (6 meses); luego se reactiva por cédula
+        value: "180"

@@ -77,11 +77,11 @@ def test_ventana_configurable_y_restauracion(admin, monkeypatch):
         pid = p["id"]
         admin.post(f"/api/pacientes/{pid}/archivar", json={"motivo": "Retiro voluntario"})
         _envejecer(pid, 10)
-        assert pid in _ids(admin.get("/api/pacientes/archivados"))           # 10 d < 60 d
+        assert pid in _ids(admin.get("/api/pacientes/archivados"))           # 10 d < 180 d
         monkeypatch.setattr(config, "ARCHIVO_DIAS", 7)
         assert pid not in _ids(admin.get("/api/pacientes/archivados"))       # 10 d > 7 d
         assert admin.post(f"/api/pacientes/{pid}/restaurar").status_code == 409   # fuera de ventana
-        monkeypatch.setattr(config, "ARCHIVO_DIAS", 60)
+        monkeypatch.setattr(config, "ARCHIVO_DIAS", 180)
         r = admin.post(f"/api/pacientes/{pid}/restaurar")
         assert r.status_code == 200 and r.json()["activo"] is True
         assert pid in _ids(admin.get("/api/pacientes?activo=true"))
@@ -138,3 +138,13 @@ def test_inactivar_por_r10_abre_periodo(admin):
         admin.patch(f"/api/pacientes/{pid}/toggle-activo", json={})
         with SessionLocal() as db:
             assert db.query(models.PacienteInactividad).filter_by(paciente_id=pid).one().hasta is not None
+
+
+def test_ventana_por_defecto_es_de_seis_meses(monkeypatch):
+    monkeypatch.delenv("ARCHIVO_DIAS", raising=False)
+    import importlib
+    import config as cfg
+    try:
+        assert importlib.reload(cfg).ARCHIVO_DIAS == 180
+    finally:
+        importlib.reload(cfg)
