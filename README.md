@@ -36,7 +36,7 @@ En muchas unidades renales el control diario se lleva en planillas impresas o en
 - **Cálculos automáticos:** pérdida real y ganancia interdialítica respecto al peso seco, con colores de alerta.
 - **Reemplazos y transitorios:** asignar un paciente suplente a una cama libre y reordenar con arrastrar y soltar.
 - **Cierre del día:** resumen por estación listo para imprimir con firmas, y bloqueo de la sesión una vez cerrada.
-- **Programación de EPO y hierro:** programación de la siguiente sesión y autoprogramación mensual según la dosis de cada paciente.
+- **EPO / Hierro del mes:** grilla mensual por paciente (EPO en jeringas de 4.000 UI y dosis de hierro) con reparto parejo, carga diaria de hierro balanceada en la unidad, días de laboratorio respetados, ajustes manuales, reprogramación automática por inasistencia al cerrar el día, llenado automático de la hoja, impresión horizontal y CSV. Reglas en [`docs/epo-hierro.md`](docs/epo-hierro.md).
 - **Programar el día siguiente:** la misma hoja de estaciones y camas (arrastrar y soltar, reemplazos, transitorios y buscador). Los cambios aplican **solo a ese día**; «Cambio permanente» actualiza la cama habitual sin alterar las hojas pasadas.
 - **Gestión de pacientes (CRUD):** acceso vascular, filtro, heparina, volumen de Watson, médico tratante y días de diálisis.
 - **Laboratorios:** registro por paciente (Hb, PTH, ferritina, creatinina…) con gráficas de evolución (Chart.js) y panel con semáforo de colores por rango.
