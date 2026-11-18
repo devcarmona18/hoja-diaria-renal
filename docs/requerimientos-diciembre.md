@@ -35,8 +35,8 @@ Nuevo apartado **"Pedido de insumos"** con todos los pacientes **activos** progr
   - **Catéter (CY)**: kit catéter, línea, SSN 1000 mL, filtro.
     - Guantes estériles 6.5: **2** si tiene citrato o heparina sódica; si no tiene ninguno y el día de la sesión es **lunes o martes**, **1**; en otro caso **0**.
     - Si el día es **lunes o martes**: apósito **IV3000**.
-    - Sin citrato ni heparina sódica: **2 Tegos**. Con citrato o heparina sódica: **tapas luer-lock** (SUPUESTO: 2 unidades).
-  - **SUPUESTO**: la regla de guantes aplica solo a CY (para fístula no se mencionan guantes).
+    - Sin citrato ni heparina sódica: **2 Tegos**. Con citrato o heparina sódica: **tapas luer-lock: 2** (normalmente 1 empaque que trae las 2; mostrar "1 empaque (2 tapas)").
+  - **Confirmado**: los guantes estériles aplican **solo a CY**; las fístulas **no** llevan guantes.
 - **Devoluciones**: si un paciente programado **no asistió** (asistencia ≠ A) **y no tiene peso de entrada**, sus insumos de ese día pasan a la sección **Devolución**.
 - **Adicionales**: al crear/editar paciente, campo **Adicional (sí/no; vacío = no)**. Un paciente adicional que llega **hoy** carga sus insumos al **pedido actual** marcado como "Adicional", no al de mañana.
 - Totales por insumo, impresión y exportación (CSV/PDF imprimible).
@@ -68,7 +68,7 @@ Campo **estado**: activo / inactivo (motivo: hospitalizado u otro). Los inactivo
 - Mostrar valor, estado, última muestra **y médico tratante**.
 - Gráfica comparativa entre meses / tomas por paciente.
 - **Notificación por Microsoft Teams** al médico correspondiente **2 veces por mes** (días configurables). SUPUESTO: vía webhook (Workflows de Teams) por médico, **apagado por defecto** (`TEAMS_ENABLED=false`) hasta que la unidad lo autorice; el mensaje usa iniciales, no nombres completos.
-- **Eliminar paciente** (fallecimiento u otro): SUPUESTO: se implementa como **archivar** (deja de aparecer en todas las listas y pedidos) conservando el historial para facturación y trazabilidad; borrado definitivo solo si no tiene sesiones.
+- **Eliminar paciente** (fallecimiento u otro) — **confirmado: archivar**. El paciente archivado deja de aparecer en listas, hoja, programación y pedidos. **A los 2 meses de archivado desaparece automáticamente también de la lista de Archivados** (purga automática del listado). Por la obligación legal de conservar los registros clínicos y de facturación, sus sesiones, laboratorios e historial **no se borran**: siguen consultables en Historial/Estadísticas. El plazo es configurable (`ARCHIVO_DIAS=60`).
 
 ## R14. Auto-programación EPO / Hierro
 Vista mensual por paciente: **nombre**, dos casillas pequeñas **EPO del mes** y **Fe del mes**, **iniciales del nefrólogo**, y a la derecha **columnas con los días del mes** en que el paciente asiste (según sus días de diálisis).
