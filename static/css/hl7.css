@@ -1,0 +1,125 @@
+/* ============================================================
+   Integración HL7 AK 98 — «Próximamente»  |  hl7.css
+   Estilos propios (prefijo hl7-) para no alterar el resto de la app.
+   Paleta alineada con Tailwind: blue-900 #1e3a8a, indigo-700 #4338ca,
+   slate-* para textos y amber-500 para la insignia «Nuevo».
+   ============================================================ */
+
+/* ── Burbuja flotante ─────────────────────────────────────────────────────── */
+.hl7-flotantes {
+  position: fixed; left: 16px; bottom: 16px; z-index: 40;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+}
+.hl7-burbuja {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #fff; color: #3730a3;                 /* indigo-800 */
+  border: 1px solid #c7d2fe;                        /* indigo-200 */
+  border-radius: 9999px; padding: 7px 14px 7px 10px;
+  box-shadow: 0 6px 18px rgba(30, 58, 138, 0.18);
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.hl7-burbuja:hover { background: #eef2ff; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(30,58,138,.22); }
+.hl7-burbuja:focus-visible, .hl7-btn:focus-visible, .hl7-cerrar:focus-visible {
+  outline: 3px solid #93c5fd; outline-offset: 2px;  /* blue-300 */
+}
+.hl7-burbuja-icono {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 9999px;
+  background: #e0e7ff; color: #4338ca;              /* indigo-100 / indigo-700 */
+}
+.hl7-insignia {
+  background: #f59e0b; color: #fff;                 /* amber-500 */
+  font-size: 0.625rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 9999px;
+}
+/* Compacta (fuera del inicio): solo el ícono con un punto de aviso */
+.hl7-compacta .hl7-burbuja { padding: 6px; gap: 0; position: relative; }
+.hl7-compacta .hl7-texto { display: none; }
+.hl7-compacta .hl7-insignia {
+  position: absolute; top: -4px; right: -4px; font-size: 0; padding: 0; min-width: 12px; height: 12px;
+  border: 2px solid #fff;
+}
+.hl7-compacta .hl7-insignia[hidden] { display: none; }
+.hl7-bandeja-btn { color: #065f46; border-color: #a7f3d0; }  /* emerald-800 / emerald-200 */
+.hl7-bandeja-btn .hl7-burbuja-icono { background: #d1fae5; color: #047857; }
+.hl7-bandeja-btn .hl7-insignia { background: #059669; }
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.hl7-overlay {
+  position: fixed; inset: 0; z-index: 110;
+  background: rgba(15, 23, 42, 0.55);              /* slate-900 */
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.hl7-overlay[hidden] { display: none; }
+.hl7-modal {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 640px; max-height: 92vh;
+  overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,.28);
+}
+.hl7-modal-cab {
+  display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 12px;
+}
+.hl7-etiqueta {
+  display: inline-block; font-size: 0.6875rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #b45309; background: #fef3c7;   /* amber-700 / amber-100 */
+  padding: 2px 8px; border-radius: 9999px; margin-bottom: 6px;
+}
+.hl7-titulo { font-size: 1.125rem; font-weight: 700; color: #1e3a8a; line-height: 1.3; }
+.hl7-cerrar {
+  margin-left: auto; border: 0; background: transparent; color: #64748b; cursor: pointer;
+  width: 34px; height: 34px; border-radius: 8px; font-size: 1.25rem; line-height: 1;
+}
+.hl7-cerrar:hover { background: #f1f5f9; color: #0f172a; }
+.hl7-cuerpo { padding: 0 22px 20px; color: #334155; font-size: 0.875rem; }
+
+.hl7-media {
+  position: relative; border-radius: 12px; overflow: hidden; background: #0f172a;
+  aspect-ratio: 16 / 9; margin-bottom: 16px;
+}
+.hl7-media video, .hl7-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hl7-media [hidden] { display: none !important; }
+.hl7-ilustracion {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 14px;
+  background: linear-gradient(135deg, #1e3a8a, #4338ca); color: #e0e7ff; font-weight: 600; font-size: .875rem;
+}
+.hl7-ilustracion span { background: rgba(255,255,255,.12); border-radius: 10px; padding: 10px 12px; }
+
+.hl7-pasos { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 10px; }
+.hl7-paso { display: flex; gap: 12px; align-items: flex-start; }
+.hl7-paso-num {
+  flex: 0 0 26px; height: 26px; border-radius: 9999px; background: #dbeafe; color: #1e40af;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8125rem;
+}
+.hl7-paso strong { display: block; color: #0f172a; }
+.hl7-nota {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b;
+  border-radius: 8px; padding: 10px 12px; color: #475569; font-size: .8125rem;
+}
+.hl7-pie { display: flex; justify-content: flex-end; padding: 0 22px 20px; }
+.hl7-btn {
+  border: 0; border-radius: 8px; padding: 8px 16px; font-size: .875rem; font-weight: 600; cursor: pointer;
+  background: #1e40af; color: #fff;                 /* blue-800 */
+}
+.hl7-btn:hover { background: #1d4ed8; }
+.hl7-btn-sec { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+.hl7-btn-sec:hover { background: #f8fafc; }
+.hl7-btn-ok { background: #047857; }
+.hl7-btn-ok:hover { background: #059669; }
+.hl7-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Bandeja de la máquina ───────────────────────────────────────────────── */
+.hl7-chip {
+  display: inline-block; font-size: .6875rem; font-weight: 600; border-radius: 9999px;
+  padding: 1px 8px; margin: 1px 2px 1px 0; white-space: nowrap;
+}
+.hl7-chip-alerta { background: #fee2e2; color: #b91c1c; }
+.hl7-chip-info   { background: #e0f2fe; color: #0369a1; }
+.hl7-valores { font-variant-numeric: tabular-nums; color: #334155; }
+.hl7-valores b { color: #0f172a; }
+.hl7-desc { color: #b45309; font-weight: 600; }
+.hl7-select { min-width: 14rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hl7-burbuja, .hl7-burbuja:hover { transition: none; transform: none; }
+}
+@media print { .hl7-flotantes, .hl7-overlay { display: none !important; } }

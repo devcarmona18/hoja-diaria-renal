@@ -42,3 +42,14 @@ COOKIE_SECURE = _bool("COOKIE_SECURE")
 # Módulo IA: solo se activa si existe la clave.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 IA_ENABLED = bool(ANTHROPIC_API_KEY)
+
+# Integración HL7 con las máquinas AK 98 («Próximamente»). APAGADA por defecto:
+# con false los endpoints /api/hl7/* de ingesta y bandeja responden 404 y la
+# interfaz solo muestra la burbuja informativa «Próximamente».
+HL7_ENABLED = _bool("HL7_ENABLED")
+# Secreto compartido con el puente local (firma HMAC-SHA256 de cada mensaje).
+HL7_BRIDGE_SECRET = os.getenv("HL7_BRIDGE_SECRET", "")
+# Tolerancia (segundos) del sello de tiempo de la firma: evita reenvíos tardíos.
+HL7_VENTANA_SEGUNDOS = int(os.getenv("HL7_VENTANA_SEGUNDOS") or 300)
+# Ruta del archivo de mapeo OBX → Hoja Diaria (por defecto hl7/mapeo_ak98.json).
+HL7_MAPEO_PATH = os.getenv("HL7_MAPEO_PATH", "")

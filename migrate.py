@@ -42,3 +42,16 @@ for sql in MIGRACIONES:
 con.commit()
 con.close()
 print(f"\nMigracion lista. {aplicadas} columna(s) nueva(s) agregada(s).")
+
+# v6 — Integración HL7 «Próximamente»: crea SOLO las tablas nuevas hl7_* si no
+# existen, en la BD de DATABASE_URL (SQLite o PostgreSQL). No altera tablas ni
+# datos existentes. Es inocuo con HL7_ENABLED=false (las tablas quedan vacías).
+try:
+    from database import engine as _engine
+    import models as _models  # noqa: F401  (registra «pacientes» para las claves foráneas)
+    import models_hl7 as _models_hl7
+
+    _models_hl7.crear_tablas(_engine)
+    print("Tablas HL7 verificadas (hl7_mensaje, hl7_paciente_id, hl7_borrador_sesion, hl7_auditoria).")
+except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
+    print(f"Tablas HL7 no creadas: {e}")

@@ -43,6 +43,12 @@ En muchas unidades renales el control diario se lleva en planillas impresas o en
 - **Acceso con login:** usuario administrador (lectura y escritura) y acceso **demo de solo lectura** para visitantes.
 - **Consulta clínica con IA (opcional):** preguntas en lenguaje natural sobre el historial de un paciente usando la API de Claude (Anthropic). Solo aparece si el servidor tiene `ANTHROPIC_API_KEY`. Es una herramienta de apoyo informativo: no diagnostica ni prescribe.
 
+## Próximamente: integración HL7
+
+Conexión de **solo lectura** con las máquinas de hemodiálisis **AK 98** de la unidad: al terminar cada sesión la máquina envía (HL7 v2 ORU^R01 por MLLP) peso de entrada y salida, UF, Kt/V, tensión, frecuencia, duración y alarmas; un puente local los reenvía firmados por HTTPS y la hoja se llena como **borrador** que enfermería solo revisa y confirma.
+
+El código ya está en el repositorio, pero está **apagado** (`HL7_ENABLED=false`): el personal solo ve la burbuja «Próximamente». Requiere autorización de la unidad, la especificación de interfaz del fabricante y la activación técnica de las máquinas. Detalles, seguridad y prueba de punta a punta con el simulador en [`docs/integracion-hl7.md`](docs/integracion-hl7.md).
+
 ## Capturas
 
 | Inicio | Gestión de pacientes |
