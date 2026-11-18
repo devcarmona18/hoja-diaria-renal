@@ -55,3 +55,14 @@ try:
     print("Tablas HL7 verificadas (hl7_mensaje, hl7_paciente_id, hl7_borrador_sesion, hl7_auditoria).")
 except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
     print(f"Tablas HL7 no creadas: {e}")
+
+# v7 — R2/R7 Programación del día siguiente: tabla «asignaciones_dia» (cambios de
+# un día) y columnas registros.estacion/cama (ubicación de cada sesión). Aditivo e
+# idempotente en SQLite y PostgreSQL; la app también lo aplica al arrancar.
+try:
+    import hoja_dia as _hoja_dia
+
+    _hechos = _hoja_dia.asegurar_esquema(_engine)
+    print("Programación por día verificada." + (f" Nuevo: {', '.join(_hechos)}" if _hechos else ""))
+except Exception as e:
+    print(f"Programación por día no migrada: {e}")
