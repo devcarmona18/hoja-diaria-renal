@@ -136,6 +136,9 @@ Sin archivo `.env` la app usa SQLite y **no pide login** (cómodo para desarroll
 | `SECRET_KEY` | Firma de la cookie de sesión | valor de desarrollo |
 | `COOKIE_SECURE` | `true` en producción (HTTPS) | `false` |
 | `ANTHROPIC_API_KEY` | Activa el módulo de IA | — |
+| `ARCHIVO_DIAS` | Días que un paciente archivado aparece en «Archivados» y es restaurable (nada clínico se borra) | `60` |
+| `TEAMS_ENABLED` | Notificaciones de laboratorio a Teams (webhook por médico). `false` = ninguna llamada saliente | `false` |
+| `TEAMS_DIAS` / `TEAMS_JOB_TOKEN` | Días del mes de envío · token del trabajo programado de GitHub Actions | `1,15` / — |
 
 ### Pruebas
 

@@ -83,3 +83,16 @@ Vista mensual por paciente: **nombre**, dos casillas pequeñas **EPO del mes** y
 
 ## R15. Otras automatizaciones
 Ver propuestas en la respuesta del chat (no se implementan sin aprobación).
+
+
+---
+
+## Implementación R11–R13 (rama wave2-historial)
+
+**R11 Historial.** `GET /api/historial/hoja?fecha=&turno=` devuelve la hoja completa (todas las filas) y el resumen del día. Al cerrar una sesión se guarda en `registros.snapshot` una foto del paciente (cama, peso seco, filtro, heparina, dosis EPO) para verla «tal como quedó». EPO es un booleano por registro; las UI salen de `pacientes.epo_dosis` (si falta, 1 jeringa = 4.000 UI, marcado como estimado). EPO y Fe solo cuentan si asistió (igual que el cierre del día).
+
+**R12 Asistencia.** Programadas = días de diálisis del paciente (LMV/TJS) con sesión en la unidad, desde su primera hoja, sin contar días inactivo/archivado (`paciente_inactividad`, periodos [desde, hasta)) ni marcados H/F; un día asistido siempre cuenta. Los pacientes ya inactivos al migrar abren su periodo el día de la migración. Cerrar mes guarda `asistencia_mensual` (inmutable por evento ORM); reabrir exige admin y motivo y se audita (`auditoria_cierre_mes`); solo se cierra un mes terminado (o `forzar`).
+
+**R13 Labs.** Estados bajo/normal/alto/muy alto con rangos en `lab_rangos` (por defecto los de la interfaz + umbral muy alto). Médicos en `medicos` (se enlazan por nombre con `pacientes.medico`). Teams: `POST /api/labs/notificaciones/enviar` (admin o `TEAMS_JOB_TOKEN`), apagado por defecto, solo iniciales, webhooks https de dominios Microsoft. Workflow `.github/workflows/teams-labs.yml` (activo solo con la variable `TEAMS_JOB_ENABLED=true`).
+
+**Archivo.** `POST /api/pacientes/{id}/archivar|restaurar` (admin), `GET /api/pacientes/archivados`. Ventana `ARCHIVO_DIAS` (60): solo afecta al listado y a la restauración; nada clínico se borra.
