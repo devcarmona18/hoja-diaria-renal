@@ -9,8 +9,10 @@ muestra esa foto, de modo que un día cerrado se ve EXACTAMENTE como quedó aunq
 paciente cambie de cama o de peso seco después. Sesiones cerradas antes de esta
 función no tienen foto: se muestran con los datos actuales del paciente.
 
-EPO: ``registros.epo`` es un booleano (una aplicación). Sus UI salen de la dosis por
-aplicación del paciente (``epo_dosis``); si falta se asume 1 jeringa = 4.000 UI.
+EPO: desde R14 cada registro guarda ``epo_jeringas`` (jeringas de 4.000 UI): UI =
+jeringas × 4.000. Los registros antiguos (``epo_jeringas`` NULL, solo el booleano
+``epo``) siguen como antes: una aplicación con la dosis por aplicación del paciente
+(``epo_dosis``) y, si falta, 1 jeringa = 4.000 UI.
 """
 from __future__ import annotations
 
@@ -73,6 +75,7 @@ def _fila(r: models.Registro) -> dict:
         "peso_seco": seco, "perdida": perdida, "ganancia": ganancia,
         "pa_pie_sistolica": r.pa_pie_sistolica, "pa_pie_diastolica": r.pa_pie_diastolica, "fc": r.fc,
         "ktv": r.ktv, "epo": bool(r.epo), "hierro": bool(r.hierro),
+        "epo_jeringas": r.epo_jeringas,
         "tipo_filtro": d.get("tipo_filtro"), "heparina_ui_kg": d.get("heparina_ui_kg"),
         "heparina_unidades": d.get("heparina_unidades"),
         "citrato": bool(r.citrato), "heparina_sodica": bool(r.heparina_sodica),
@@ -85,7 +88,8 @@ def _fila(r: models.Registro) -> dict:
 def resumen(filas: list[dict], n_sesiones: int) -> dict:
     asistidos = [f for f in filas if f["asistencia"] == "A"]
     epo = [f for f in asistidos if f["epo"]]
-    ui = sum((f["epo_dosis"] or JERINGA_UI) for f in epo)
+    ui = sum(f["epo_jeringas"] * JERINGA_UI if f.get("epo_jeringas") is not None
+             else (f["epo_dosis"] or JERINGA_UI) for f in epo)
     return {
         "sesiones": n_sesiones,
         "pacientes": len(filas),
@@ -97,7 +101,7 @@ def resumen(filas: list[dict], n_sesiones: int) -> dict:
         "epo_aplicaciones": len(epo),
         "epo_ui": int(round(ui)),
         "epo_jeringas": round(ui / JERINGA_UI, 2),
-        "epo_dosis_estimada": sum(1 for f in epo if not f["epo_dosis"]),
+        "epo_dosis_estimada": sum(1 for f in epo if f.get("epo_jeringas") is None and not f["epo_dosis"]),
         "fe_aplicado": sum(1 for f in asistidos if f["hierro"]),
     }
 

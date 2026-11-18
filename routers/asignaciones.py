@@ -22,6 +22,7 @@ import hoja_dia as hd
 import models
 import schemas
 from database import get_db
+from services import epo_fe as srv_epo_fe
 
 router = APIRouter()
 
@@ -60,7 +61,12 @@ def _hoja_out(db: Session, fecha: str, turno: str) -> dict:
     f = hd.parse_fecha(fecha)
     sesion = hd.sesion_de(db, fecha, turno)
 
+    mes_epo = srv_epo_fe.valores_dia(db, fecha)   # R14: la programación mensual manda
+
     def flags(pid):
+        if pid in mes_epo:
+            jer, fe = mes_epo[pid]
+            return {"epo": jer > 0, "hierro": fe > 0, "epo_jeringas": jer, "epo_fe_mes": True}
         pr = hoja.programacion.get(pid)
         return {"epo": bool(pr.epo_programado) if pr else False,
                 "hierro": bool(pr.hierro_programado) if pr else False}

@@ -37,6 +37,8 @@ def _build_registro_out(r: models.Registro) -> dict:
         "ganancia_id": ganancia,
         "balance_seco": balance,
         "epo": bool(r.epo),
+        "epo_jeringas": r.epo_jeringas if r.epo_jeringas is not None else (1 if r.epo else 0),
+        "epo_fe_manual": bool(r.epo_fe_manual),
         "hierro": bool(r.hierro),
         "observaciones": r.observaciones or "",
         "ktv": r.ktv,
@@ -80,6 +82,16 @@ def update_registro(
     dia = cambios.get("pa_pie_diastolica", r.pa_pie_diastolica)
     if sis is not None and dia is not None and sis <= dia:
         raise HTTPException(422, "La PA sistólica debe ser mayor que la diastólica")
+
+    # R14: EPO en jeringas de 4.000 UI; ``epo`` (booleano) se mantiene coherente.
+    if "epo_jeringas" in cambios and cambios["epo_jeringas"] is not None:
+        cambios["epo"] = cambios["epo_jeringas"] > 0
+    elif "epo" in cambios:
+        # Casilla booleana (clientes antiguos): sin número de jeringas queda como antes
+        # (una aplicación con la dosis de la ficha del paciente).
+        cambios["epo_jeringas"] = (r.epo_jeringas if cambios["epo"] and (r.epo_jeringas or 0) > 0 else None)
+    if {"epo", "epo_jeringas", "hierro"} & set(cambios):
+        cambios["epo_fe_manual"] = True    # el personal lo cambió: la programación ya no lo pisa
 
     for k, v in cambios.items():
         setattr(r, k, v)

@@ -14,6 +14,7 @@ import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
 from routers import archivo, labs  # R13
+from routers import epo_fe  # R14: auto-programación EPO / hierro
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 from routers import asignaciones  # R2/R7: programar el día siguiente, cambios de un día
 
@@ -64,6 +65,7 @@ app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"
 app.include_router(asignaciones.router,  prefix="/api/asignaciones",  tags=["programacion"])
 app.include_router(archivo.router,       prefix="/api/pacientes",     tags=["archivo"])
 app.include_router(labs.router,          prefix="/api/labs",          tags=["labs"])
+app.include_router(epo_fe.router,        prefix="/api/epo-fe",        tags=["epo-fe"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
