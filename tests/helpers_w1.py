@@ -17,6 +17,7 @@ def borrar_paciente(cedula):
         if p:
             db.query(models.Registro).filter_by(paciente_id=p.id).delete()
             db.query(models.Programacion).filter_by(paciente_id=p.id).delete()
+            db.query(models.PacienteInactividad).filter_by(paciente_id=p.id).delete()   # R12
             db.delete(p)
             db.commit()
 
