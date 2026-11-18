@@ -69,3 +69,9 @@ try:
     print("Migración v7 (acceso vascular, PA/FC, UI, estado del paciente) verificada.")
 except Exception as e:
     print(f"Migración v7 no aplicada: {e}")
+
+
+# v8 — R11–R13: foto de la hoja al cerrar, asistencia mensual/cierre de mes, archivo de
+# pacientes, directorio de médicos (webhook de Teams) y rangos de laboratorio. Ya la
+# ejecuta v7 (`migraciones.aplicar`); se deja este aviso para quien lea el historial.
+print("Migración v8 (historial, cierre de mes, archivo, médicos/Teams) incluida en v7.")

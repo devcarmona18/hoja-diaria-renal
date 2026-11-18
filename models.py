@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint,
+    Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint, DateTime, Text,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -35,6 +35,9 @@ class Paciente(Base):
     epo_mensual       = Column(Float)    # UI totales prescritas al mes
     epo_dosis         = Column(Float)    # UI por aplicación
     hierro_mensual    = Column(Integer)  # Número de aplicaciones de Fe al mes
+    # R13: archivo. «Eliminar paciente» = archivar (nunca se borra nada clínico).
+    archivado_en      = Column(DateTime)       # UTC; null = no archivado
+    archivado_motivo  = Column(String(200))
 
 
 class Sesion(Base):
@@ -74,6 +77,8 @@ class Registro(Base):
     transitorio_nombre      = Column(String)
     transitorio_paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=True)
     transitorio_asistencia  = Column(String)
+    # R11: foto JSON de los datos del paciente al cerrar la sesión (cama, peso seco…)
+    snapshot                = Column(Text)
 
     sesion               = relationship("Sesion", back_populates="registros")
     paciente             = relationship("Paciente", foreign_keys=[paciente_id])
@@ -112,3 +117,101 @@ class Laboratorio(Base):
     observaciones = Column(String, default="")
 
     paciente = relationship("Paciente")
+
+
+# ── R11–R13 ───────────────────────────────────────────────────────────────────
+
+class Medico(Base):
+    """Directorio de médicos tratantes. ``pacientes.medico`` sigue siendo el texto
+    libre; se enlaza por nombre (sin distinguir mayúsculas ni espacios)."""
+    __tablename__ = "medicos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(120), nullable=False, unique=True)
+    iniciales = Column(String(10), nullable=False, default="")
+    teams_webhook_url = Column(String(600))      # R13: webhook de Teams (Workflows)
+
+
+class LabRango(Base):
+    """Rangos configurables por analito; sustituyen a los de ``services/labs.py`` (valores por defecto)."""
+    __tablename__ = "lab_rangos"
+
+    tipo = Column(String(30), primary_key=True)
+    minimo = Column(Float)       # por debajo -> bajo
+    maximo = Column(Float)       # por encima -> alto
+    muy_alto = Column(Float)     # por encima -> muy alto
+
+
+class PacienteInactividad(Base):
+    """Periodos en que el paciente no contó para la asistencia: [desde, hasta)."""
+    __tablename__ = "paciente_inactividad"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False, index=True)
+    desde = Column(String(10), nullable=False)     # YYYY-MM-DD
+    hasta = Column(String(10))                     # null = sigue inactivo/archivado
+    origen = Column(String(12), nullable=False)    # inactivo | archivado
+    motivo = Column(String(200))
+
+
+class CierreMes(Base):
+    """Un cierre de mes (facturación). El vigente es el último sin ``reabierto_en``."""
+    __tablename__ = "cierres_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)      # YYYY-MM
+    cerrado_por = Column(String(80), nullable=False)
+    cerrado_en = Column(DateTime, nullable=False)
+    reabierto_por = Column(String(80))
+    reabierto_en = Column(DateTime)
+    reapertura_motivo = Column(String(300))
+
+
+class AsistenciaMensual(Base):
+    """Registro mensual INMUTABLE de asistencia por paciente (base de la facturación)."""
+    __tablename__ = "asistencia_mensual"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cierre_id = Column(Integer, ForeignKey("cierres_mes.id"), nullable=False, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    programadas = Column(Integer, nullable=False)
+    asistidas = Column(Integer, nullable=False)
+    porcentaje = Column(Float, nullable=False)
+    cerrado_por = Column(String(80), nullable=False)
+    cerrado_en = Column(DateTime, nullable=False)
+
+
+class AuditoriaCierreMes(Base):
+    __tablename__ = "auditoria_cierre_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    accion = Column(String(10), nullable=False)      # cerrar | reabrir
+    usuario = Column(String(80), nullable=False)
+    motivo = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
+class TeamsEnvio(Base):
+    """Bitácora de notificaciones a Teams (evita duplicados del mismo día)."""
+    __tablename__ = "teams_envios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(String(10), nullable=False, index=True)
+    medico_id = Column(Integer, ForeignKey("medicos.id"), nullable=False)
+    pacientes = Column(Integer, nullable=False, default=0)
+    estado = Column(String(12), nullable=False)       # enviado | error
+    http_status = Column(Integer)
+    detalle = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
+from sqlalchemy import event  # noqa: E402
+
+
+@event.listens_for(AsistenciaMensual, "before_update")
+@event.listens_for(AsistenciaMensual, "before_delete")
+def _asistencia_mensual_inmutable(mapper, connection, target):
+    """R12: el registro mensual cerrado no se modifica ni se borra (se reabre el cierre y se vuelve a cerrar)."""
+    raise ValueError("El registro mensual de asistencia es inmutable")
