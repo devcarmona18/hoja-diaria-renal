@@ -817,8 +817,12 @@ async function patchRegistro(id, data) {
   try {
     setSaveStatus(true)
     const updated = await apiPatch(`/api/sesiones/registros/${id}`, data)
-    updateRegLocal(id, updated)
-    setSaveStatus(false)
+    // No pisar con datos viejos del servidor los campos que el usuario aún está
+    // escribiendo (varias casillas se guardan con retraso en paralelo).
+    const fresco = { ...updated }
+    for (const k of Object.keys(fresco)) if (G.pendientes.has(id + k)) delete fresco[k]
+    updateRegLocal(id, fresco)
+    setSaveStatus(G.pendientes.size > 0)
     updateCalculatedCells(id)
   } catch (e) {
     setSaveStatus(false); toast(e.message, "err")
