@@ -1,0 +1,48 @@
+{
+  "_AVISO": "IDENTIFICADORES PROVISIONALES. Los códigos OBX-3 de este archivo (prefijo AK98-) son marcadores de posición inventados para desarrollo y pruebas. ANTES de activar la integración deben reemplazarse por los identificadores reales que figuren en la especificación de interfaz HL7 del fabricante (Gambro/Baxter/Vantive) para el AK 98 y/o el sistema de gestión que exporte los datos, y validarse con Ingeniería Biomédica.",
+  "equipo": "Gambro AK 98",
+  "estado": "PROVISIONAL",
+  "zona_horaria": "-05:00",
+
+  "_comentario_paciente": "Campo del PID donde la máquina envía el identificador del paciente. Por defecto PID-3.1. Confirmar con el fabricante.",
+  "paciente": { "campo": 3, "componente": 1 },
+
+  "_comentario_observaciones": "Clave = OBX-3.1 (identificador de la observación). destino = campo de la Hoja Diaria. unidades = factor para convertir a la unidad interna (kg, L, min, mmHg, lpm).",
+  "observaciones": {
+    "AK98-PESO-PRE":   { "destino": "peso_entrada",        "tipo": "numero",  "unidades": { "kg": 1, "g": 0.001, "": 1 } },
+    "AK98-PESO-POST":  { "destino": "peso_salida",         "tipo": "numero",  "unidades": { "kg": 1, "g": 0.001, "": 1 } },
+    "AK98-UF-TOTAL":   { "destino": "uf_litros",           "tipo": "numero",  "unidades": { "L": 1, "l": 1, "mL": 0.001, "ml": 0.001, "": 1 } },
+    "AK98-KTV":        { "destino": "ktv",                 "tipo": "numero",  "unidades": { "": 1, "1": 1 } },
+    "AK98-PA":         { "destino": "tension",             "tipo": "tension", "unidades": { "mm[Hg]": 1, "mmHg": 1, "": 1 } },
+    "AK98-PA-SIS":     { "destino": "ta_sistolica",        "tipo": "numero",  "unidades": { "mm[Hg]": 1, "mmHg": 1, "": 1 } },
+    "AK98-PA-DIA":     { "destino": "ta_diastolica",       "tipo": "numero",  "unidades": { "mm[Hg]": 1, "mmHg": 1, "": 1 } },
+    "AK98-FC":         { "destino": "frecuencia_cardiaca", "tipo": "numero",  "unidades": { "/min": 1, "lpm": 1, "bpm": 1, "": 1 } },
+    "AK98-DURACION":   { "destino": "duracion_min",        "tipo": "numero",  "unidades": { "min": 1, "h": 60, "s": 0.0166667, "": 1 } },
+    "AK98-ALARMA":     { "destino": "alarmas",             "tipo": "lista" },
+    "AK98-NOTA":       { "destino": "observaciones",       "tipo": "texto" }
+  },
+
+  "_comentario_rangos": "Valores fuera de estos rangos se marcan como alerta en el borrador (no se descartan).",
+  "rangos": {
+    "peso_entrada":        [20, 250],
+    "peso_salida":         [20, 250],
+    "uf_litros":           [0, 6],
+    "ktv":                 [0.5, 3.0],
+    "ta_sistolica":        [60, 250],
+    "ta_diastolica":       [30, 150],
+    "frecuencia_cardiaca": [30, 200],
+    "duracion_min":        [30, 360]
+  },
+
+  "umbrales": {
+    "salto_peso_kg": 3.5,
+    "diferencia_uf_kg": 0.8
+  },
+
+  "_comentario_turnos": "Turno según la hora de inicio de la sesión (OBR-7). Un rango que cruza la medianoche asigna la madrugada al turno de la fecha anterior.",
+  "turnos": [
+    { "turno": "M", "desde": "04:00", "hasta": "11:59" },
+    { "turno": "T", "desde": "12:00", "hasta": "17:59" },
+    { "turno": "N", "desde": "18:00", "hasta": "03:59" }
+  ]
+}
