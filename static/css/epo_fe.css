@@ -59,6 +59,7 @@
 
 @media print {
   @page { size: A4 landscape; margin: 8mm; }
+  .ef-cab, .ef-leyenda, .ef-audit { display: none !important; }
   .ef-titulo-print { display: block; font-size: 14px; font-weight: 700; margin: 0 0 4px; }
   .ef-tabla-wrap { max-height: none; overflow: visible; border: none; }
   .ef-tabla { font-size: 8px; width: 100%; min-width: 0; }
@@ -66,7 +67,7 @@
   .ef-tabla thead th { background: #e2e8f0 !important; color: #000 !important; }
   .ef-pac { min-width: 120px !important; }
   .ef-c, .ef-dia { min-width: 0; height: 20px; }
-  .ef-inp { border: none; width: 22px; font-size: 9px; }
+  .ef-inp { border: none; width: 28px; font-size: 9px; padding: 0; }
   .ef-aviso { display: none; }
   .ef-epo, .ef-fe, .ef-lab, .ef-falto, .ef-epo2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .ef-tabla tr { break-inside: avoid; }
