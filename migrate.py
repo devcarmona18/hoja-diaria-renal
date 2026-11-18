@@ -64,6 +64,8 @@ except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
 # v9 — R11–R13: foto de la hoja al cerrar (registros.snapshot), asistencia mensual y
 #      cierre de mes, periodos de inactividad, archivo de pacientes, médicos/Teams y
 #      rangos de laboratorio.
+# v10 — R14: auto-programación mensual de EPO / hierro (tablas epo_fe_* y
+#      registros.epo_jeringas / epo_fe_manual).
 # Todas viven en migraciones.aplicar(): una sola ruta idempotente, en SQLite y
 # PostgreSQL, que la app también ejecuta sola al arrancar.
 try:
