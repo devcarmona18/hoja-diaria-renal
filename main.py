@@ -15,6 +15,7 @@ from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 from routers import asignaciones  # R2/R7: programar el día siguiente, cambios de un día
+from routers import insumos  # R5/R6: pedido de insumos
 
 log = logging.getLogger("uvicorn.error")
 
@@ -59,6 +60,7 @@ app.include_router(historial.router,     prefix="/api/historial",     tags=["his
 app.include_router(estadisticas.router,  prefix="/api/estadisticas",  tags=["estadisticas"])
 app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"])
 app.include_router(asignaciones.router,  prefix="/api/asignaciones",  tags=["programacion"])
+app.include_router(insumos.router,       prefix="/api/insumos",       tags=["insumos"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
