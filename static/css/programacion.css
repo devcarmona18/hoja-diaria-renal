@@ -1,0 +1,44 @@
+/* ── Programar próxima sesión (R2/R7) ────────────────────────────────────── */
+.prog-buscar-wrap { max-width: 340px; }
+.prog-buscar-input { width: 300px; padding: 6px 10px; font-size: 0.875rem; }
+
+.prog-tabla td { vertical-align: middle; }
+.prog-libre td { background: #f8fafc; border-bottom: 1px dashed #e2e8f0; }
+.prog-libre:hover td { background: #f1f5f9 !important; }
+
+/* Cambio solo de este día: borde ámbar a la izquierda */
+tr.prog-cambio td:first-child { box-shadow: inset 4px 0 0 #d97706; }
+tr.prog-conflicto td { background: #fee2e2 !important; }
+tr.prog-encontrado td { background: #dcfce7 !important; transition: background .3s; }
+tr[data-pid]:focus { outline: 2px solid #2563eb; outline-offset: -2px; }
+
+.prog-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 9999px;
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+}
+.prog-badge-mover  { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+.prog-badge-trans  { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+.prog-badge-reempl { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+
+.prog-btn {
+  padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;
+  border: 1px solid #94a3b8; background: #fff; color: #1e3a5f; cursor: pointer; white-space: nowrap;
+}
+.prog-btn:hover { background: #eff6ff; border-color: #3b82f6; }
+.prog-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.prog-btn-undo { border-color: #16a34a; color: #166534; background: #f0fdf4; }
+.prog-btn-undo:hover { background: #dcfce7; border-color: #16a34a; }
+.prog-btn-perm { border-color: #7c3aed; color: #5b21b6; background: #f5f3ff; }
+.prog-btn-perm:hover { background: #ede9fe; border-color: #7c3aed; }
+
+.prog-alerta {
+  background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b;
+  border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem;
+}
+.prog-aviso {
+  background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a;
+  border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem;
+}
+.prog-fuera-item { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
+.capitalize { text-transform: capitalize; }
+.prog-fuera-lista > li + li { margin-top: 0.25rem; }
