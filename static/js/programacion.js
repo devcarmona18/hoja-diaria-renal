@@ -234,10 +234,13 @@ function progFilaPuesto(pu, bloq, conflicto) {
       </td>
       <td class="text-xs text-slate-500">${p.dias || "—"}</td>
       <td>${cambio}</td>
-      <td class="text-center"><input type="checkbox" class="chk-epo" ${pu.epo ? "checked" : ""} ${dis}
+      ${pu.epo_fe_mes   /* R14: lo decide la programación EPO / Fe del mes */
+        ? `<td class="text-center text-xs font-semibold text-blue-700" title="Programado en «EPO / Fe del mes»">${pu.epo_jeringas ? (pu.epo_jeringas * 4000).toLocaleString("es-CO") : "—"}</td>
+           <td class="text-center text-xs font-semibold text-amber-700" title="Programado en «EPO / Fe del mes»">${pu.hierro ? "Fe" : "—"}</td>`
+        : `<td class="text-center"><input type="checkbox" class="chk-epo" ${pu.epo ? "checked" : ""} ${dis}
           aria-label="EPO para ${nombre}" onchange="progFlag(${p.id},'epo',this.checked)" /></td>
       <td class="text-center"><input type="checkbox" class="chk-hierro" ${pu.hierro ? "checked" : ""} ${dis}
-          aria-label="Hierro para ${nombre}" onchange="progFlag(${p.id},'hierro',this.checked)" /></td>
+          aria-label="Hierro para ${nombre}" onchange="progFlag(${p.id},'hierro',this.checked)" /></td>`}
       <td class="text-center"><input type="checkbox" class="w-4 h-4" checked ${inclDis}
           title="${a ? "Deshaga el cambio para quitarlo" : "Quitar de la programación de ese día"}"
           aria-label="Incluir a ${nombre} ese día" onchange="progIncluir(${p.id},this.checked)" /></td>
