@@ -37,6 +37,7 @@ En muchas unidades renales el control diario se lleva en planillas impresas o en
 - **Reemplazos y transitorios:** asignar un paciente suplente a una cama libre y reordenar con arrastrar y soltar.
 - **Cierre del día:** resumen por estación listo para imprimir con firmas, y bloqueo de la sesión una vez cerrada.
 - **Programación de EPO y hierro:** programación de la siguiente sesión y autoprogramación mensual según la dosis de cada paciente.
+- **Programar el día siguiente:** la misma hoja de estaciones y camas (arrastrar y soltar, reemplazos, transitorios y buscador). Los cambios aplican **solo a ese día**; «Cambio permanente» actualiza la cama habitual sin alterar las hojas pasadas.
 - **Gestión de pacientes (CRUD):** acceso vascular, filtro, heparina, volumen de Watson, médico tratante y días de diálisis.
 - **Laboratorios:** registro por paciente (Hb, PTH, ferritina, creatinina…) con gráficas de evolución (Chart.js) y panel con semáforo de colores por rango.
 - **Historial y estadísticas** de asistencia por paciente y por mes.
