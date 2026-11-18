@@ -13,7 +13,7 @@ import auth
 import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
-from routers import archivo  # R13
+from routers import archivo, labs  # R13
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 
 log = logging.getLogger("uvicorn.error")
@@ -30,6 +30,8 @@ async def lifespan(_: FastAPI):
             n = seed.sembrar_si_vacia(db)
         if n:
             log.info("DEMO_MODE: base vacía, se cargaron %d pacientes ficticios", n)
+            from services import demo_clinico   # R13: médicos y laboratorios ficticios
+            demo_clinico.sembrar_clinico_demo(db)
     if not config.AUTH_ENABLED:
         log.warning("APP_USER/APP_PASSWORD no definidos: login DESACTIVADO (solo para desarrollo local)")
     yield
@@ -59,6 +61,7 @@ app.include_router(historial.router,     prefix="/api/historial",     tags=["his
 app.include_router(estadisticas.router,  prefix="/api/estadisticas",  tags=["estadisticas"])
 app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"])
 app.include_router(archivo.router,       prefix="/api/pacientes",     tags=["archivo"])
+app.include_router(labs.router,          prefix="/api/labs",          tags=["labs"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
