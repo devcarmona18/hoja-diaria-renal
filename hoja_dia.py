@@ -37,6 +37,21 @@ DIAS_GRUPO = {"LMV": {0, 2, 4}, "MJS": {1, 3, 5}, "TJS": {1, 3, 5}}
 TODA_LA_SEMANA = {0, 1, 2, 3, 4, 5}
 
 
+# ── ¿Vino o faltó? (definición ÚNICA: pedido de insumos y EPO/Fe del mes) ────
+
+def llego(asistencia: str | None, peso_entrada: float | None) -> bool:
+    """El paciente se dializó: asistencia «A» o peso de entrada anotado."""
+    return asistencia == "A" or peso_entrada is not None
+
+
+def falto(asistencia: str | None, peso_entrada: float | None, hoja_cerrada: bool) -> bool:
+    """No vino: sin «A» y sin peso de entrada, con la ausencia ya marcada (NA, H, F…)
+    o con la hoja cerrada. Insumos lo usa para las devoluciones del día; la
+    reprogramación de EPO/Fe (R14) solo mira hojas cerradas (``hoja_cerrada=True``),
+    así ambos coinciden en cuanto se cierra el día."""
+    return not llego(asistencia, peso_entrada) and (bool(asistencia) or bool(hoja_cerrada))
+
+
 class Conflicto(Exception):
     """Cambio imposible (cama ocupada, hoja cerrada…). El mensaje es para el usuario."""
 

@@ -182,7 +182,7 @@ class Asistencia:
 
     @property
     def llego(self) -> bool:
-        return self.asistencia == "A" or self.peso_entrada is not None
+        return hd.llego(self.asistencia, self.peso_entrada)
 
     @property
     def adicional_de_hoy(self) -> bool:
@@ -289,7 +289,7 @@ def filas_de_hoy(db: Session, fecha: str, reglas: ir.Reglas) -> dict:
             revisar.append(_copia(f, "revisar", "Marcado A (asistió) pero sin peso de entrada"))
         elif a.peso_entrada is not None:
             revisar.append(_copia(f, "revisar", "Tiene peso de entrada pero la asistencia no es A"))
-        elif a.asistencia or a.sesion.cerrada:
+        elif hd.falto(a.asistencia, a.peso_entrada, bool(a.sesion.cerrada)):
             motivo = {"NA": "No asistió", "H": "Hospitalizado", "F": "Falleció"}.get(a.asistencia or "", "Sin asistencia (hoja cerrada)")
             devolucion.append(_copia(f, "devolucion", motivo))
         else:
@@ -310,7 +310,7 @@ def filas_de_hoy(db: Session, fecha: str, reglas: ir.Reglas) -> dict:
                                      asistencia=a.asistencia, peso_entrada=a.peso_entrada,
                                      motivo="Paciente adicional" if es_adicional(p) else "Adicional de hoy",
                                      tipo="adicional"))
-        elif a.asistencia == "A" or a.peso_entrada is not None:
+        elif a.llego:
             revisar.append(_fila("revisar", fecha, p, a.sesion.turno, e, c, reglas, registro=a.registro,
                                  asistencia=a.asistencia, peso_entrada=a.peso_entrada,
                                  motivo="Asistió sin estar en el pedido: ¿marcarlo como adicional?"))
