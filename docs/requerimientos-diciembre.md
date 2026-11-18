@@ -25,7 +25,7 @@ En la unidad se programa un día antes (el lunes se programan los pacientes del 
 
 ## R4. Datos visibles del paciente en la hoja
 En la fila del paciente se ven: **filtro**, **dosis de heparina**, **cédula** (ficticia en demo) y **UI**.
-**SUPUESTO**: "UI" es un campo numérico propio del paciente con rango válido **10 a 20 UI** (validar mínimo 10, máximo 20). Pendiente confirmar con David a qué se refiere exactamente.
+**Confirmado por David**: "UI" es la dosis de **heparina en unidades internacionales por kilo de peso (UI/kg)**, rango válido **10 a 20 UI/kg**. Se puede mostrar el total calculado ≈ UI/kg × peso seco.
 
 ## R5 + R6. Pedido de insumos
 Nuevo apartado **"Pedido de insumos"** con todos los pacientes **activos** programados.
