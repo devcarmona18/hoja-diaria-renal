@@ -27,7 +27,8 @@ Cambios de esta entrega:
   R12 tablas cierres_mes / asistencia_mensual / auditoria_cierre_mes / paciente_inactividad
       (los pacientes que YA están inactivos abren su periodo de inactividad hoy)
   R13 pacientes.archivado_en / archivado_motivo; tablas medicos (se llena con los
-      nombres de ``pacientes.medico``), lab_rangos, teams_envios
+      nombres de ``pacientes.medico``), lab_rangos, teams_envios, auditoria_pacientes
+      (bitácora de archivar / restaurar / reactivar)
 
 Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
 llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
@@ -140,7 +141,8 @@ def _aplicar_r11_r13(engine) -> list[str]:
     import models  # import tardío: evita ciclos al importar este módulo desde migrate.py
     hechas: list[str] = []
     nuevas = [models.Medico, models.LabRango, models.PacienteInactividad, models.CierreMes,
-              models.AsistenciaMensual, models.AuditoriaCierreMes, models.TeamsEnvio]
+              models.AsistenciaMensual, models.AuditoriaCierreMes, models.TeamsEnvio,
+              models.AuditoriaPaciente]
     tablas = set(inspect(engine).get_table_names())
     for modelo in nuevas:
         if modelo.__tablename__ not in tablas:

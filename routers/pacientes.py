@@ -32,7 +32,13 @@ def listar_pacientes(
 
 @router.post("", response_model=schemas.PacienteOut, status_code=201)
 def crear_paciente(data: schemas.PacienteCreate, db: Session = Depends(get_db)):
-    if db.query(models.Paciente).filter_by(cedula=data.cedula).first():
+    existente = db.query(models.Paciente).filter_by(cedula=data.cedula).first()
+    if existente and existente.archivado_en is not None:
+        # R13: la cédula es de un paciente ARCHIVADO -> se ofrece reactivarlo (409 con datos)
+        from routers.archivo import item_archivado
+        raise HTTPException(409, {"mensaje": "La cédula pertenece a un paciente archivado: puede reactivarlo.",
+                                  "codigo": "cedula_archivada", "paciente": item_archivado(existente)})
+    if existente:
         raise HTTPException(400, "Cédula ya registrada")
     p = models.Paciente(**data.model_dump())
     db.add(p)

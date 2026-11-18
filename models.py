@@ -241,6 +241,20 @@ class AuditoriaCierreMes(Base):
     creado_en = Column(DateTime, nullable=False)
 
 
+class AuditoriaPaciente(Base):
+    """R13: bitácora de archivar / restaurar / reactivar pacientes. Sin FK: la
+    bitácora sobrevive aunque una prueba o una purga manual borre al paciente."""
+    __tablename__ = "auditoria_pacientes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paciente_id = Column(Integer, nullable=False, index=True)
+    cedula = Column(String(40))
+    accion = Column(String(12), nullable=False)      # archivar | restaurar | reactivar
+    usuario = Column(String(80), nullable=False)
+    motivo = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
 class TeamsEnvio(Base):
     """Bitácora de notificaciones a Teams (evita duplicados del mismo día)."""
     __tablename__ = "teams_envios"

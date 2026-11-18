@@ -16,6 +16,7 @@ def borrar_paciente_total(cedula):
         db.query(models.Programacion).filter_by(paciente_id=pid).delete()
         db.query(models.Laboratorio).filter_by(paciente_id=pid).delete()
         db.query(models.PacienteInactividad).filter_by(paciente_id=pid).delete()
+        db.query(models.AuditoriaPaciente).filter_by(paciente_id=pid).delete()   # R13 (sin FK)
         db.query(models.AsignacionDia).filter(   # R2/R7: cambios de un día (suyos o como reemplazado)
             (models.AsignacionDia.paciente_id == pid)
             | (models.AsignacionDia.reemplaza_paciente_id == pid)).delete(synchronize_session=False)

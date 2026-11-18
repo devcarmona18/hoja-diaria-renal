@@ -148,3 +148,39 @@ def test_ventana_por_defecto_es_de_seis_meses(monkeypatch):
         assert importlib.reload(cfg).ARCHIVO_DIAS == 180
     finally:
         importlib.reload(cfg)
+
+
+def test_reactivar_archivado_fuera_de_ventana_y_auditado(admin, demo):
+    with paciente_y_mes(admin, "T-R13A-008", MES) as p:
+        pid = p["id"]
+        admin.post(f"/api/pacientes/{pid}/archivar", json={"motivo": "Traslado"})
+        _envejecer(pid, config.ARCHIVO_DIAS + 30)                         # ya fuera de la lista
+        assert pid not in _ids(admin.get("/api/pacientes/archivados"))
+        assert admin.post(f"/api/pacientes/{pid}/restaurar").status_code == 409
+        # la búsqueda por cédula sí lo encuentra (incluye vencidos)
+        r = admin.get("/api/pacientes/archivados/buscar?cedula=R13A-008").json()["pacientes"]
+        assert [x["id"] for x in r] == [pid] and r[0]["en_ventana"] is False
+        assert admin.get("/api/pacientes/archivados/buscar?cedula=R1").json()["pacientes"] == []
+        # crear con su cédula -> 409 que ofrece reactivar (no «Cédula ya registrada»)
+        r = admin.post("/api/pacientes", json={**{k: p[k] for k in ("nombre", "estacion", "cama", "turno")},
+                                               "cedula": p["cedula"]})
+        assert r.status_code == 409 and r.json()["detail"]["codigo"] == "cedula_archivada"
+        assert r.json()["detail"]["paciente"]["id"] == pid
+        # solo admin
+        assert demo.post(f"/api/pacientes/{pid}/reactivar", json={}).status_code == 403
+        r = admin.post(f"/api/pacientes/{pid}/reactivar", json={"motivo": "Reingreso"})
+        assert r.status_code == 200, r.text
+        with SessionLocal() as db:
+            pa = db.get(models.Paciente, pid)
+            assert pa.archivado_en is None and pa.archivado_motivo is None and pa.activo is True
+            per = db.query(models.PacienteInactividad).filter_by(paciente_id=pid).all()
+            assert per and all(x.hasta is not None for x in per)
+        assert pid in _ids(admin.get("/api/pacientes?activo=true"))
+        aud = admin.get(f"/api/pacientes/{pid}/auditoria").json()
+        assert [(a["accion"], a["usuario"]) for a in aud] == [("reactivar", "admin"), ("archivar", "admin")]
+        assert aud[0]["motivo"] == "Reingreso"
+        assert admin.post(f"/api/pacientes/{pid}/reactivar", json={}).status_code == 409
+        # una cédula de paciente NO archivado sigue siendo «Cédula ya registrada»
+        r = admin.post("/api/pacientes", json={**{k: p[k] for k in ("nombre", "estacion", "cama", "turno")},
+                                               "cedula": p["cedula"]})
+        assert r.status_code == 400 and r.json()["detail"] == "Cédula ya registrada"

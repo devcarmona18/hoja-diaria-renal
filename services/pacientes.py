@@ -171,6 +171,32 @@ def restaurar(db: Session, p: models.Paciente, ahora: Optional[datetime] = None)
     cerrar_inactividad(db, p.id, ahora.date().isoformat(), solo_origen="archivado")
 
 
+def reactivar(db: Session, p: models.Paciente, usuario: str, motivo: Optional[str] = None,
+              ahora: Optional[datetime] = None) -> None:
+    """Reactiva un archivado aunque ya haya salido de la lista (pasado ``ARCHIVO_DIAS``):
+    vuelve a estar activo, se cierra su periodo de inactividad y queda auditado."""
+    ahora = ahora or ahora_utc()
+    restaurar(db, p, ahora)
+    auditar(db, p, "reactivar", usuario, motivo, ahora)
+
+
+def auditar(db: Session, p: models.Paciente, accion: str, usuario: str,
+            motivo: Optional[str] = None, ahora: Optional[datetime] = None) -> None:
+    db.add(models.AuditoriaPaciente(paciente_id=p.id, cedula=p.cedula, accion=accion, usuario=usuario,
+                                    motivo=(motivo or "").strip()[:300] or None,
+                                    creado_en=ahora or ahora_utc()))
+
+
+def buscar_archivados_por_cedula(db: Session, cedula: str) -> list[models.Paciente]:
+    """Archivados cuya cédula contiene el texto (incluye los que ya salieron de la lista)."""
+    texto = "".join((cedula or "").split())
+    if len(texto) < 3:
+        return []
+    return (db.query(models.Paciente)
+            .filter(models.Paciente.archivado_en.isnot(None), models.Paciente.cedula.contains(texto))
+            .order_by(models.Paciente.archivado_en.desc()).limit(20).all())
+
+
 # ── Periodos de inactividad (insumo de la asistencia, R12) ───────────────────
 def abrir_inactividad(db: Session, paciente_id: int, desde: str, origen: str,
                       motivo: Optional[str] = None) -> None:

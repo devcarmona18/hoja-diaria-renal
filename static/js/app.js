@@ -119,7 +119,11 @@ async function _apiCheck(r) {
   if (r.status === 401) { location.href = "/login"; throw new Error("Sesión expirada") }
   if (!r.ok && r.status !== 204) {
     const e = await r.json().catch(() => ({}))
-    throw new Error(e.detail || r.statusText)
+    // detail puede ser texto o un objeto {mensaje, codigo, …} (p. ej. cédula de un archivado)
+    const d = e.detail
+    const msg = typeof d === "string" ? d : (d && d.mensaje) || (Array.isArray(d) ? d.map(x => x.msg).join("; ") : "") || r.statusText
+    const err = new Error(msg); err.status = r.status; err.detalle = d
+    throw err
   }
   return r
 }

@@ -477,8 +477,16 @@ async function _guardarNuevo() {
     closeModal(); toast("Paciente creado correctamente")
     renderCRUD(_crudTurno)
   } catch (e) {
+    // R13: la cédula es de un archivado -> ofrecer «Reactivar paciente archivado» (archivo.js)
+    if (e.detalle && e.detalle.codigo === "cedula_archivada") { archivoOfrecerReactivar(e.detalle.paciente); return }
     const el = $("form-error"); el.textContent = e.message; el.classList.remove("hidden")
   }
+}
+
+// R13: tras reactivar un archivado se abre su ficha para revisar turno, cama y prescripción
+async function crudEditarPorId(id, turno) {
+  await renderCRUD(turno || _crudTurno)
+  crudEditar(id)
 }
 
 function crudEditar(id) {
