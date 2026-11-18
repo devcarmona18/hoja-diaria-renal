@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index,
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, Text,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -35,6 +35,10 @@ class Paciente(Base):
     epo_mensual       = Column(Float)    # UI totales prescritas al mes
     epo_dosis         = Column(Float)    # UI por aplicación
     hierro_mensual    = Column(Integer)  # Número de aplicaciones de Fe al mes
+    # R5/R6 Pedido de insumos
+    adicional         = Column(Boolean)  # paciente adicional (null/False = no): sus insumos se piden el día que llega
+    citrato           = Column(Boolean)  # CY: sellado/uso habitual de citrato
+    heparina_sodica   = Column(Boolean)  # CY: sellado/uso habitual de heparina sódica
 
 
 class Sesion(Base):
@@ -79,6 +83,8 @@ class Registro(Base):
     # permanente posterior no altera la hoja de sesiones pasadas.
     estacion = Column(Integer)
     cama     = Column(Integer)
+    # R6: adicional solo de esta sesión (quien asiste en la fila: paciente o suplente)
+    adicional = Column(Boolean)
 
     sesion               = relationship("Sesion", back_populates="registros")
     paciente             = relationship("Paciente", foreign_keys=[paciente_id])
@@ -154,3 +160,60 @@ class Laboratorio(Base):
     observaciones = Column(String, default="")
 
     paciente = relationship("Paciente")
+
+
+# ── R5/R6 Pedido de insumos ───────────────────────────────────────────────────
+
+class InsumosConfig(Base):
+    """Reglas del pedido de insumos editadas por el administrador (JSON).
+    Sin fila = se usan las reglas por defecto de services/insumos_reglas.json."""
+    __tablename__ = "insumos_config"
+
+    id             = Column(Integer, primary_key=True)
+    clave          = Column(String(40), unique=True, nullable=False)   # "reglas"
+    contenido      = Column(Text, nullable=False)                      # JSON
+    actualizado_en = Column(DateTime)
+    actualizado_por = Column(String(80))
+
+
+class PedidoInsumos(Base):
+    """Foto de un pedido CONFIRMADO/ENVIADO. Las ediciones posteriores de pacientes
+    o reglas no lo cambian. Antes de confirmar el pedido se calcula en vivo."""
+    __tablename__ = "pedido_insumos"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    fecha_pedido    = Column(String(10), nullable=False, unique=True)   # día en que se hace el pedido
+    fecha_sesiones  = Column(String(10), nullable=False, index=True)    # día de diálisis que cubre
+    estado          = Column(String(20), nullable=False, default="confirmado")
+    confirmado_en   = Column(DateTime)
+    confirmado_por  = Column(String(80))
+    reglas_json     = Column(Text)        # reglas usadas (auditoría)
+    resumen_json    = Column(Text)        # avisos/notas del cálculo
+
+    items = relationship("PedidoInsumosItem", back_populates="pedido",
+                         cascade="all, delete-orphan", order_by="PedidoInsumosItem.id")
+
+
+class PedidoInsumosItem(Base):
+    """Una línea del pedido: un insumo de un paciente en una sección."""
+    __tablename__ = "pedido_insumos_items"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    pedido_id       = Column(Integer, ForeignKey("pedido_insumos.id", ondelete="CASCADE"), nullable=False, index=True)
+    seccion         = Column(String(20), nullable=False)   # pedido | adicional | devolucion
+    fecha_sesion    = Column(String(10))
+    paciente_id     = Column(Integer)                      # sin FK: la foto sobrevive al paciente
+    paciente_nombre = Column(String(200))
+    cedula          = Column(String(40))
+    turno           = Column(String(1))
+    estacion        = Column(Integer)
+    cama            = Column(Integer)
+    acceso          = Column(String(80))
+    insumo_codigo   = Column(String(60))                   # NULL = paciente sin insumos (solo avisos)
+    insumo_nombre   = Column(String(120))
+    cantidad        = Column(Integer)
+    unidad          = Column(String(30))
+    detalle         = Column(String(120))
+    alertas         = Column(String(300))                  # avisos del paciente separados por « · »
+
+    pedido = relationship("PedidoInsumos", back_populates="items")

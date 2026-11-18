@@ -20,6 +20,8 @@ Cambios de esta entrega:
       (ubicación de cada sesión). Al crear esas columnas se rellenan los registros
       existentes con la ubicación base actual del paciente, así las hojas pasadas
       se ven igual que antes.
+  R5/R6 pacientes.adicional / citrato / heparina_sodica, registros.adicional y
+      tablas insumos_config, pedido_insumos, pedido_insumos_items (pedido de insumos).
 
 Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
 llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
@@ -43,7 +45,15 @@ COLUMNAS_NUEVAS = [
     ("registros", "fc", "INTEGER"),
     ("registros", "estacion", "INTEGER"),
     ("registros", "cama", "INTEGER"),
+    # R5/R6 pedido de insumos
+    ("pacientes", "adicional", "BOOLEAN"),
+    ("pacientes", "citrato", "BOOLEAN"),
+    ("pacientes", "heparina_sodica", "BOOLEAN"),
+    ("registros", "adicional", "BOOLEAN"),
 ]
+
+# R5/R6: tablas nuevas (orden: la de items depende de pedido_insumos)
+TABLAS_NUEVAS = ("insumos_config", "pedido_insumos", "pedido_insumos_items")
 
 # valor antiguo de pacientes.acceso -> (acceso nuevo, estado, calibre)
 CONVERSION_ACCESO = {
@@ -65,6 +75,11 @@ def aplicar(engine) -> list[str]:
     if "pacientes" in tablas and "asignaciones_dia" not in tablas:
         models.AsignacionDia.__table__.create(bind=engine, checkfirst=True)
         hechas.append("+tabla asignaciones_dia")
+
+    for nombre in TABLAS_NUEVAS:
+        if "pacientes" in tablas and nombre not in tablas:
+            models.Base.metadata.tables[nombre].create(bind=engine, checkfirst=True)
+            hechas.append(f"+tabla {nombre}")
 
     with engine.begin() as con:
         agregadas: set[tuple[str, str]] = set()
