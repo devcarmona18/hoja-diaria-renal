@@ -163,7 +163,9 @@ def buscar(q: str = Query(..., min_length=1, max_length=60),
     # R10: los inactivos aparecen en la búsqueda, marcados («activo»: false), para
     # poder encontrarlos; no se pueden programar (hoja_dia._exigir_activo).
     encontrados = []
-    for p in db.query(models.Paciente).order_by(models.Paciente.nombre).all():
+    # R13: los archivados no aparecen (se restauran desde «Archivados»).
+    for p in (db.query(models.Paciente).filter(models.Paciente.archivado_en.is_(None))
+              .order_by(models.Paciente.nombre).all()):
         nombre = _normalizar(p.nombre)
         ced = "".join(ch for ch in (p.cedula or "") if ch.isdigit())
         if all(t in nombre for t in texto.split()) or (digitos and digitos in ced):

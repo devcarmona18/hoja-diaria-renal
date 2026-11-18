@@ -53,3 +53,26 @@ HL7_BRIDGE_SECRET = os.getenv("HL7_BRIDGE_SECRET", "")
 HL7_VENTANA_SEGUNDOS = int(os.getenv("HL7_VENTANA_SEGUNDOS") or 300)
 # Ruta del archivo de mapeo OBX → Hoja Diaria (por defecto hl7/mapeo_ak98.json).
 HL7_MAPEO_PATH = os.getenv("HL7_MAPEO_PATH", "")
+
+
+# ── R13: archivo de pacientes ────────────────────────────────────────────────
+# Días que un paciente archivado sigue apareciendo en la lista «Archivados» (y que
+# se puede restaurar). Pasado el plazo solo desaparece del LISTADO: sus sesiones,
+# laboratorios y asistencia nunca se borran.
+ARCHIVO_DIAS = int(os.getenv("ARCHIVO_DIAS") or 60)
+
+# ── R13: notificaciones a Microsoft Teams (APAGADAS por defecto) ─────────────
+# Con TEAMS_ENABLED=false no se hace NINGUNA llamada HTTP saliente.
+TEAMS_ENABLED = _bool("TEAMS_ENABLED")
+# Días del mes (separados por coma) en que corresponde enviar el reporte.
+TEAMS_DIAS = os.getenv("TEAMS_DIAS", "1,15")
+# Token del trabajo programado (GitHub Actions): Authorization: Bearer <token>.
+# Vacío = solo el administrador con sesión puede disparar el envío.
+TEAMS_JOB_TOKEN = os.getenv("TEAMS_JOB_TOKEN", "")
+TEAMS_TIMEOUT = int(os.getenv("TEAMS_TIMEOUT") or 10)
+# Dominios permitidos para los webhooks (protección contra SSRF).
+TEAMS_HOSTS_PERMITIDOS = tuple(
+    h.strip().lower() for h in (os.getenv("TEAMS_HOSTS_PERMITIDOS") or
+    "webhook.office.com,office.com,office365.com,logic.azure.com,powerplatform.com,microsoft.com").split(",")
+    if h.strip()
+)

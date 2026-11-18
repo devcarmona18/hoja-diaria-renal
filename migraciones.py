@@ -21,6 +21,12 @@ Cambios de esta entrega:
       existentes con la ubicación base actual del paciente, así las hojas pasadas
       se ven igual que antes.
 
+  R11 registros.snapshot (foto JSON del paciente al cerrar la sesión)
+  R12 tablas cierres_mes / asistencia_mensual / auditoria_cierre_mes / paciente_inactividad
+      (los pacientes que YA están inactivos abren su periodo de inactividad hoy)
+  R13 pacientes.archivado_en / archivado_motivo; tablas medicos (se llena con los
+      nombres de ``pacientes.medico``), lab_rangos, teams_envios
+
 Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
 llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
 """
@@ -103,4 +109,62 @@ def aplicar(engine) -> list[str]:
                 r = con.execute(text("UPDATE pacientes SET acceso_sitio = 'yugular' WHERE acceso = 'CY'"))
                 if r.rowcount:
                     hechas.append(f"acceso CY -> yugular ({r.rowcount})")
+    hechas += _aplicar_r11_r13(engine)
+    return hechas
+
+
+# ── R11–R13 (lista aparte para no mezclar con las de otras entregas) ─────────
+COLUMNAS_R11_R13 = [
+    ("pacientes", "archivado_en", "TIMESTAMP"),
+    ("pacientes", "archivado_motivo", "VARCHAR(200)"),
+    ("registros", "snapshot", "TEXT"),
+]
+
+
+def _aplicar_r11_r13(engine) -> list[str]:
+    import models  # import tardío: evita ciclos al importar este módulo desde migrate.py
+    hechas: list[str] = []
+    nuevas = [models.Medico, models.LabRango, models.PacienteInactividad, models.CierreMes,
+              models.AsistenciaMensual, models.AuditoriaCierreMes, models.TeamsEnvio]
+    tablas = set(inspect(engine).get_table_names())
+    for modelo in nuevas:
+        if modelo.__tablename__ not in tablas:
+            modelo.__table__.create(bind=engine, checkfirst=True)
+            hechas.append(f"+tabla {modelo.__tablename__}")
+    tablas = set(inspect(engine).get_table_names())
+
+    with engine.begin() as con:
+        for tabla, col, tipo in COLUMNAS_R11_R13:
+            if tabla in tablas and col not in {c["name"] for c in inspect(con).get_columns(tabla)}:
+                con.execute(text(f'ALTER TABLE {tabla} ADD COLUMN {col} {tipo}'))
+                hechas.append(f"+{tabla}.{col}")
+
+    if "pacientes" not in tablas:
+        return hechas
+    cols = {c["name"] for c in inspect(engine).get_columns("pacientes")}
+    from datetime import date
+    from services.medicos import iniciales_medico, normalizar
+    with engine.begin() as con:
+        if "medico" in cols:   # médicos del texto libre -> tabla medicos (por nombre, sin duplicar)
+            conocidos = {normalizar(n) for (n,) in con.execute(text("SELECT nombre FROM medicos"))}
+            nuevos = 0
+            for (nombre,) in con.execute(text(
+                    "SELECT DISTINCT medico FROM pacientes WHERE medico IS NOT NULL")).fetchall():
+                if normalizar(nombre) and normalizar(nombre) not in conocidos:
+                    limpio = " ".join(nombre.split())
+                    con.execute(text("INSERT INTO medicos (nombre, iniciales) VALUES (:n, :i)"),
+                                {"n": limpio, "i": iniciales_medico(limpio)})
+                    conocidos.add(normalizar(nombre))
+                    nuevos += 1
+            if nuevos:
+                hechas.append(f"medicos +{nuevos}")
+        if "activo" in cols:   # ya inactivos: su periodo de inactividad empieza hoy (no hay historial previo)
+            filas = con.execute(text(
+                "SELECT id FROM pacientes WHERE (activo IS NULL OR activo = :f) AND id NOT IN "
+                "(SELECT paciente_id FROM paciente_inactividad)"), {"f": False}).fetchall()
+            for (pid,) in filas:
+                con.execute(text("INSERT INTO paciente_inactividad (paciente_id, desde, origen) "
+                                 "VALUES (:p, :d, 'inactivo')"), {"p": pid, "d": date.today().isoformat()})
+            if filas:
+                hechas.append(f"paciente_inactividad +{len(filas)}")
     return hechas

@@ -1,0 +1,32 @@
+name: Notificación de laboratorios a Teams
+
+# APAGADO por defecto: el trabajo solo corre si la variable del repositorio
+# TEAMS_JOB_ENABLED vale 'true' (Settings > Variables) y existen los secretos.
+# Corre a diario; la aplicación decide si hoy toca según TEAMS_DIAS (por defecto 1 y 15)
+# y si TEAMS_ENABLED está activo en el servidor.
+on:
+  schedule:
+    - cron: "0 13 * * *"      # 08:00 hora de Colombia (UTC-5)
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  enviar:
+    if: ${{ vars.TEAMS_JOB_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Llamar al endpoint de envío
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          TEAMS_JOB_TOKEN: ${{ secrets.TEAMS_JOB_TOKEN }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$TEAMS_JOB_TOKEN" ]; then
+            echo "Faltan los secretos APP_URL y/o TEAMS_JOB_TOKEN"; exit 1
+          fi
+          # Render gratuito tarda ~50 s en despertar: reintentos con espera.
+          curl --fail-with-body --silent --show-error --retry 4 --retry-delay 20 --retry-all-errors \
+            --max-time 120 -X POST "$APP_URL/api/labs/notificaciones/enviar" \
+            -H "Authorization: Bearer $TEAMS_JOB_TOKEN" \
+            -H "Content-Type: application/json" -d '{}'

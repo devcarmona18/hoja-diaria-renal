@@ -13,6 +13,7 @@ import auth
 import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
+from routers import archivo, labs  # R13
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
 from routers import asignaciones  # R2/R7: programar el día siguiente, cambios de un día
 
@@ -22,14 +23,16 @@ log = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     models.Base.metadata.create_all(bind=engine)
-    for accion in migraciones.aplicar(engine):   # única migración aditiva (R1/R3/R4/R10 y R2/R7)
+    for accion in migraciones.aplicar(engine):   # única migración aditiva (R1/R3/R4/R10, R2/R7 y R11–R13)
         log.info("migración: %s", accion)
     if config.DEMO_MODE:
         import seed
         with SessionLocal() as db:
             n = seed.sembrar_si_vacia(db)
-        if n:
-            log.info("DEMO_MODE: base vacía, se cargaron %d pacientes ficticios", n)
+            if n:
+                log.info("DEMO_MODE: base vacía, se cargaron %d pacientes ficticios", n)
+                from services import demo_clinico   # R13: médicos y laboratorios ficticios
+                demo_clinico.sembrar_clinico_demo(db)
     if not config.AUTH_ENABLED:
         log.warning("APP_USER/APP_PASSWORD no definidos: login DESACTIVADO (solo para desarrollo local)")
     yield
@@ -59,6 +62,8 @@ app.include_router(historial.router,     prefix="/api/historial",     tags=["his
 app.include_router(estadisticas.router,  prefix="/api/estadisticas",  tags=["estadisticas"])
 app.include_router(ia.router,            prefix="/api/ia",            tags=["ia"])
 app.include_router(asignaciones.router,  prefix="/api/asignaciones",  tags=["programacion"])
+app.include_router(archivo.router,       prefix="/api/pacientes",     tags=["archivo"])
+app.include_router(labs.router,          prefix="/api/labs",          tags=["labs"])
 app.include_router(hl7.router,           prefix="/api/hl7",           tags=["hl7"], include_in_schema=config.HL7_ENABLED)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

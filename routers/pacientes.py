@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 import models, schemas
 from database import get_db
-from services.pacientes import consulta_activos
+from services.pacientes import consulta_activos, registrar_cambio_activo
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ def listar_pacientes(
 ):
     if activo is True:
         return consulta_activos(db, turno, estacion).all()
-    q = db.query(models.Paciente)
+    q = db.query(models.Paciente).filter(models.Paciente.archivado_en.is_(None))   # R13: archivados fuera
     if turno:
         q = q.filter(models.Paciente.turno == turno)
     if estacion:
@@ -36,6 +36,9 @@ def crear_paciente(data: schemas.PacienteCreate, db: Session = Depends(get_db)):
         raise HTTPException(400, "Cédula ya registrada")
     p = models.Paciente(**data.model_dump())
     db.add(p)
+    if p.activo is False:   # R12: se crea ya inactivo -> su periodo empieza hoy
+        db.flush()
+        registrar_cambio_activo(db, p, True)
     db.commit()
     db.refresh(p)
     return p
@@ -58,11 +61,14 @@ def actualizar_paciente(
     p = db.get(models.Paciente, paciente_id)
     if not p:
         raise HTTPException(404, "Paciente no encontrado")
+    if p.archivado_en is not None:
+        raise HTTPException(409, "El paciente está archivado: restáurelo antes de editarlo")
     estaba_activo = p.activo is True
     for k, v in data.model_dump().items():
         setattr(p, k, v)
     if estaba_activo and not p.activo:
         _retirar_de_sesiones_abiertas(db, paciente_id)
+    registrar_cambio_activo(db, p, estaba_activo)   # R12: periodos de inactividad
     db.commit()
     db.refresh(p)
     return p
@@ -78,7 +84,10 @@ def toggle_activo(
     p = db.get(models.Paciente, paciente_id)
     if not p:
         raise HTTPException(404, "Paciente no encontrado")
-    p.activo = not (p.activo is True)
+    if p.archivado_en is not None:
+        raise HTTPException(409, "El paciente está archivado: restáurelo desde «Archivados»")
+    estaba_activo = p.activo is True
+    p.activo = not estaba_activo
 
     if p.activo:
         p.motivo_inactivo = None
@@ -88,6 +97,7 @@ def toggle_activo(
         texto = (data.motivo_texto or "").strip() if data else ""
         p.motivo_inactivo_texto = texto or None
         _retirar_de_sesiones_abiertas(db, paciente_id)
+    registrar_cambio_activo(db, p, estaba_activo)   # R12: periodos de inactividad
 
     db.commit()
     db.refresh(p)

@@ -533,3 +533,75 @@ input[type="number"].salida-input[aria-invalid="true"] { border-color: #dc2626; 
 }
 .motivo-inactivo { display: block; font-size: 0.68rem; color: #991b1b; margin-top: 1px; }
 .tbl-crud tr.inactivo td { background: #fff7f7; opacity: 0.8; }
+
+/* ══ R11–R13: historial del día, asistencia mensual, laboratorios, archivo ══════ */
+
+/* Estados de laboratorio: siempre texto + símbolo, el color solo refuerza */
+.est-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 9999px;
+             font-size: 0.72rem; font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+.est-bajo     { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+.est-normal   { background: #f0fdf4; color: #166534; border-color: #86efac; }
+.est-alto     { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
+.est-muy_alto { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+.est-sin_dato, .est-sin_rango { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.chip-filtro { padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;
+               border: 1px solid #cbd5e1; background: #fff; color: #475569; cursor: pointer; }
+.chip-filtro:hover { border-color: #3b82f6; }
+.chip-filtro[aria-pressed="true"] { background: #1e40af; border-color: #1e40af; color: #fff; }
+.chip-filtro:focus-visible, .btn-foco:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+
+/* Barra de asistencia (alcanza 100 % si asistió a todo lo programado) */
+.asis-bar { display: inline-block; width: 90px; height: 10px; border-radius: 9999px; background: #e2e8f0;
+            overflow: hidden; vertical-align: middle; }
+.asis-bar > span { display: block; height: 100%; border-radius: 9999px; background: #059669; }
+.asis-bar.medio > span { background: #d97706; }
+.asis-bar.bajo > span { background: #dc2626; }
+.asis-pct { display: inline-block; min-width: 3.4em; text-align: right; font-weight: 700; font-size: 0.75rem; color: #334155; }
+.badge-mes { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; }
+.badge-mes.cerrado { background: #1e3a5f; color: #fff; }
+.badge-mes.abierto { background: #fef3c7; color: #92400e; }
+
+/* Hoja del día (Historial) */
+.solo-print { display: none; }
+.tbl-hoja { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
+.tbl-hoja th { background: #1e3a5f; color: #e2e8f0; padding: 5px 6px; text-align: center; white-space: nowrap; position: sticky; top: 0; }
+.tbl-hoja td { padding: 4px 6px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: top; }
+.tbl-hoja td.izq, .tbl-hoja th.izq { text-align: left; }
+.tbl-hoja td.obs { text-align: left; min-width: 140px; max-width: 260px; white-space: normal; }
+.tbl-hoja .sub { display: block; font-size: 0.65rem; color: #64748b; }
+.tbl-hoja tr.fila-turno td { background: #e2e8f0; color: #1e293b; font-weight: 700; text-align: left; }
+.hoja-aviso { border-radius: 10px; padding: 8px 12px; font-size: 0.8rem; margin-bottom: 12px; }
+.hoja-aviso.cerrada { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; }
+.hoja-aviso.abierta { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+
+/* Laboratorios */
+.lab-config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.rango-input { width: 100%; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem; }
+
+@media print {
+  @page { size: landscape; margin: 10mm; }
+  .solo-print { display: block; }
+  .hoja-print .no-print, .hoja-print button, .hoja-print select, .hoja-print input { display: none !important; }
+  .hoja-print { box-shadow: none !important; padding: 0 !important; }
+  .hoja-print .overflow-x-auto { overflow: visible !important; border: 0 !important; }
+  .tbl-hoja { font-size: 9px; }
+  .tbl-hoja th { position: static; background: #e2e8f0 !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbl-hoja td, .tbl-hoja th { border: 1px solid #94a3b8; padding: 2px 3px; }
+  .tbl-hoja tr { break-inside: avoid; }
+  .tbl-asistencia-print .no-print { display: none !important; }
+}
+
+/* Utilidades que el Tailwind compilado no trae (R11–R13) */
+button:disabled, .btn-foco:disabled { opacity: .4; cursor: not-allowed; }
+.hover\:underline:hover { text-decoration: underline; }
+.hover-amber:hover { background: #fde68a; }
+.max-w-7xl { max-width: 80rem; }
+.list-disc { list-style: disc; }
+.ml-5 { margin-left: 1.25rem; }
+.mr-auto { margin-right: auto; }
+.font-normal { font-weight: 400; }
+.text-amber-900 { color: #78350f; }
+.btn-foco:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+.btn-foco.bg-red-700:hover { background: #991b1b; }
+.btn-foco.bg-emerald-700:hover { background: #065f46; }
+.btn-foco.bg-amber-600:hover { background: #b45309; }

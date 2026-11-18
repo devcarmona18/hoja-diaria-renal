@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 
 import models
-from services.pacientes import consulta_activos, esta_activo
+from services.pacientes import consulta_activos, esta_activo, esta_archivado
 
 TURNOS = ("M", "T", "N")
 TURNO_NOMBRE = {"M": "Mañana", "T": "Tarde", "N": "Noche"}
@@ -83,10 +83,16 @@ def _dias_se_cruzan(a: str | None, b: str | None) -> bool:
 # R10: el criterio activo/inactivo (hospitalizado, otro motivo) vive en
 # services.pacientes; aquí solo se reutiliza. Es el único punto que decide quién
 # entra a la composición del día y a la programación automática.
+# R13: un paciente ARCHIVADO cuenta como inactivo en todo este módulo (no entra a
+# la hoja, sus cambios de un día no cuentan y no se puede programar).
 
 def filtrar_activos(query):
     """Restringe una Query de Paciente a los activos (mismo criterio que consulta_activos)."""
-    return query.filter(models.Paciente.activo.is_(True))
+    return query.filter(models.Paciente.activo.is_(True), models.Paciente.archivado_en.is_(None))
+
+
+def _motivo_fuera(p: models.Paciente) -> str:
+    return "Archivado" if esta_archivado(p) else "Inactivo"
 
 
 def es_activo(p: models.Paciente) -> bool:
@@ -166,10 +172,13 @@ def componer(db: Session, fecha: str, turno: str) -> Hoja:
     # (si era suplente, el paciente reemplazado vuelve a su cama).
     inactivos = [a for a in asigs if not esta_activo(a.paciente)]
     asigs = [a for a in asigs if esta_activo(a.paciente)]
-    hoja.excluidos += [(a.paciente, "Inactivo") for a in inactivos if a.turno == turno]
+    hoja.excluidos += [(a.paciente, _motivo_fuera(a.paciente)) for a in inactivos if a.turno == turno]
     por_paciente = {a.paciente_id: a for a in asigs}
     del_turno = [a for a in asigs if a.turno == turno]
-    reemplazos = {a.reemplaza_paciente_id: a for a in del_turno if a.tipo == "reemplazo"}
+    # Un reemplazo cuyo reemplazado quedó inactivo o archivado: el suplente ocupa la
+    # cama como un transitorio (no se crea fila «H» para quien ya no está en la unidad).
+    reemplazos = {a.reemplaza_paciente_id: a for a in del_turno
+                  if a.tipo == "reemplazo" and a.reemplaza is not None and esta_activo(a.reemplaza)}
 
     for p in base:
         a = por_paciente.get(p.id)
@@ -187,7 +196,10 @@ def componer(db: Session, fecha: str, turno: str) -> Hoja:
             if a.paciente_id not in hoja.base_ids:
                 hoja.desplazados.append((a.paciente, sup, sup.estacion, sup.cama))
             continue
-        hoja.puestos.append(Puesto(a.paciente, a.estacion, a.cama, a.tipo, a))
+        tipo = a.tipo
+        if tipo == "reemplazo" and a.reemplaza_paciente_id not in reemplazos:
+            tipo = "transitorio"                   # su reemplazado ya no está activo
+        hoja.puestos.append(Puesto(a.paciente, a.estacion, a.cama, tipo, a))
 
     for a in reemplazos.values():                  # reemplazado que no estaba en la base
         q = a.reemplaza
@@ -398,6 +410,8 @@ def _paciente(db: Session, paciente_id: int) -> models.Paciente:
 
 def _exigir_activo(p: models.Paciente) -> None:
     """R10: un paciente inactivo no se programa (ni cambio de un día ni suplente)."""
+    if esta_archivado(p):
+        raise Conflicto(f"{p.nombre} está archivado; restáurelo desde «Archivados» para programarlo.")
     if not esta_activo(p):
         raise Conflicto(f"{p.nombre} está inactivo; reactívelo en Pacientes para programarlo.")
 

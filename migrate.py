@@ -61,7 +61,10 @@ except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
 #      tipos de acceso antiguos.
 # v8 — Programación del día siguiente (R2/R7): tabla «asignaciones_dia» (cambios
 #      de un día) y columnas registros.estacion/cama (ubicación de cada sesión).
-# Ambas viven en migraciones.aplicar(): una sola ruta idempotente, en SQLite y
+# v9 — R11–R13: foto de la hoja al cerrar (registros.snapshot), asistencia mensual y
+#      cierre de mes, periodos de inactividad, archivo de pacientes, médicos/Teams y
+#      rangos de laboratorio.
+# Todas viven en migraciones.aplicar(): una sola ruta idempotente, en SQLite y
 # PostgreSQL, que la app también ejecuta sola al arrancar.
 try:
     from database import engine as _engine2
@@ -69,7 +72,8 @@ try:
 
     for _accion in _migraciones.aplicar(_engine2):
         print(f"OK  : {_accion}")
-    print("Migraciones v7 (acceso vascular, PA/FC, UI, estado del paciente) y "
-          "v8 (programación por día) verificadas.")
+    print("Migraciones v7 (acceso vascular, PA/FC, UI, estado del paciente), "
+          "v8 (programación por día) y v9 (historial, cierre de mes, archivo, "
+          "médicos/Teams) verificadas.")
 except Exception as e:
-    print(f"Migraciones v7/v8 no aplicadas: {e}")
+    print(f"Migraciones v7/v8/v9 no aplicadas: {e}")

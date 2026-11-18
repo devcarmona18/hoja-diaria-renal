@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
+from services import hoja as srv_hoja
 
 router = APIRouter()
 
@@ -49,6 +50,7 @@ def cerrar_sesion(sesion_id: int, db: Session = Depends(get_db)):
     if sesion.cerrada:
         raise HTTPException(400, "La sesión ya está cerrada")
     sesion.cerrada = True
+    srv_hoja.tomar_snapshot(db, sesion_id)   # R11: la hoja queda «como estaba»
     db.commit()
     db.refresh(sesion)
     return sesion
@@ -60,6 +62,7 @@ def reabrir_sesion(sesion_id: int, db: Session = Depends(get_db)):
     if not sesion:
         raise HTTPException(404, "Sesión no encontrada")
     sesion.cerrada = False
+    srv_hoja.borrar_snapshot(db, sesion_id)   # al reabrir vuelve a mostrar los datos vivos
     db.commit()
     db.refresh(sesion)
     return sesion
