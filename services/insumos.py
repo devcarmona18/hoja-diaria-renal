@@ -53,10 +53,10 @@ class ErrorPedido(Exception):
 def cuenta_para_pedido(p: models.Paciente | None) -> bool:
     """Único punto que decide si un paciente entra al pedido.
 
-    R10: solo activos (hoja_dia.componer ya filtra con services.pacientes).
-    TODO(R13 archivo): cuando exista el archivado, sumar aquí la condición
-    «no archivado» (o hacerlo dentro de services.pacientes.esta_activo /
-    consulta_activos, que también usa hoja_dia.componer).
+    R10/R13: solo activos y NO archivados. ``services.pacientes.esta_activo`` y
+    ``consulta_activos`` (que usa hoja_dia.componer) ya excluyen a los archivados,
+    así un paciente archivado sale del pedido futuro sin confirmar; los pedidos
+    confirmados son una foto y no cambian.
     """
     return p is not None and esta_activo(p)
 

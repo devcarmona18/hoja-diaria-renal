@@ -317,6 +317,42 @@ def test_confirmar_guarda_foto_inmutable(c):
     assert c.delete(f"/api/insumos/pedido/{SAB}").status_code == 404
 
 
+def test_archivado_sale_del_pedido_futuro_pero_no_del_confirmado(c):
+    """R13: archivar no altera la foto de un pedido confirmado, pero el paciente
+    ya no entra a la composición en vivo de pedidos futuros sin confirmar."""
+    p = pac(c, "M", 1, 3)
+    with SessionLocal() as db:
+        max_inac = max([i.id for i in db.query(models.PacienteInactividad)] or [0])
+        cols = [k.name for k in models.Programacion.__table__.columns]
+        prog = [{k: getattr(r, k) for k in cols}
+                for r in db.query(models.Programacion).filter_by(paciente_id=p["id"])]
+    try:
+        assert c.post("/api/insumos/pedido/confirmar", json={"fecha": SAB}).status_code == 201
+        r = c.post(f"/api/pacientes/{p['id']}/archivar", json={"motivo": "Traslado"})
+        assert r.status_code == 200, r.text
+        confirmado = pedido(c, SAB)
+        assert confirmado["confirmado"] is not None
+        assert fila(confirmado, "pedido", p["id"]) is not None          # la foto no cambia
+        futuro = pedido(c, LUN)                                          # sin confirmar: en vivo
+        assert futuro["confirmado"] is None
+        ids = {f["paciente_id"] for s in ("pedido", "adicional") for f in futuro["secciones"][s]}
+        assert p["id"] not in ids
+        assert c.delete(f"/api/insumos/pedido/{SAB}").status_code == 200
+        assert fila(pedido(c, SAB), "pedido", p["id"]) is None          # recalculado: ya no está
+    finally:
+        with SessionLocal() as db:
+            pa = db.get(models.Paciente, p["id"])
+            pa.archivado_en = pa.archivado_motivo = None
+            pa.activo = True
+            db.query(models.PacienteInactividad).filter(
+                models.PacienteInactividad.id > max_inac).delete(synchronize_session=False)
+            existentes = {r.id for r in db.query(models.Programacion).filter_by(paciente_id=p["id"])}
+            for fila_prog in prog:
+                if fila_prog["id"] not in existentes:
+                    db.add(models.Programacion(**fila_prog))
+            db.commit()
+
+
 def test_novedades_despues_de_confirmar(c):
     a = pac(c, "M", 1, 7)
     set_pac(a["id"], adicional=True)
