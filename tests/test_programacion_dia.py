@@ -371,3 +371,10 @@ def test_migracion_aditiva_en_bd_existente(tmp_path):
     with eng.connect() as c:
         assert c.execute(text("SELECT estacion, cama, asistencia FROM registros")).one() == (2, 7, "A")
     eng.dispose()
+
+
+def test_ui_programacion_presente(anonimo):
+    html = anonimo.get("/static/index.html").text
+    assert "/static/js/programacion.js" in html and "/static/css/programacion.css" in html
+    js = anonimo.get("/static/js/programacion.js").text
+    assert "/api/asignaciones/proximo-dia" in js and "Cambio permanente" in js and "progDrop" in js
