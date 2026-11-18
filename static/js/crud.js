@@ -7,18 +7,26 @@ let _crudTurno        = "M"
 let _crudPacientes    = []
 let _crudVerInactivos = false
 
-// Tipos de acceso vascular para el selector
-const ACCESO_OPCIONES = [
-  { v: "",        l: "— Sin asignar —" },
-  { v: "CY",      l: "CY — Catéter yugular" },
-  { v: "FAV_L",   l: "FAV — Fístula Limpia" },
-  { v: "FAV_AR",  l: "FAV ⚠ — Alto Riesgo" },
-  { v: "FAV_ANE", l: "⚠ FAV Aneurismática" },
-  { v: "F16",     l: "G16 — Agujas Fístula G16" },
-  { v: "F17",     l: "G17 — Agujas Fístula G17" },
+// R1: tipos de acceso vascular. FAV (estado + calibre de aguja) · CY (yugular / femoral)
+const ACCESO_TIPOS = [
+  { v: "",    l: "— Sin asignar —" },
+  { v: "FAV", l: "FAV — Fístula arteriovenosa" },
+  { v: "CY",  l: "CY — Catéter" },
 ]
+const FAV_ESTADOS   = [{ v: "limpia", l: "Limpia" }, { v: "alto_riesgo", l: "Alto riesgo" }, { v: "aneurismatica", l: "Aneurismática" }]
+const FAV_CALIBRES  = [15, 16, 17]
+const CY_SITIOS     = [{ v: "yugular", l: "Yugular" }, { v: "femoral", l: "Femoral" }]
+const MOTIVOS_INACTIVO = [{ v: "hospitalizado", l: "Hospitalizado" }, { v: "otro", l: "Otro" }]
 
 const FILTROS_COMUNES = ["R-300", "R-400", "B-18", "B-20", "B-15", "B-12", "FX60", "FX80", "Purema Plus"]
+
+/** R10: «Hospitalizado» / «Otro: texto» bajo el badge de inactivo */
+function motivoInactivoHTML(p) {
+  if (p.activo) return ""
+  const base = p.motivo_inactivo === "hospitalizado" ? "Hospitalizado" : p.motivo_inactivo === "otro" ? "Otro" : ""
+  const txt = [base, p.motivo_inactivo_texto].filter(Boolean).join(": ")
+  return txt ? `<span class="motivo-inactivo">${escHtml(txt)}</span>` : ""
+}
 
 async function renderCRUD(turno = "M") {
   G.vista = "crud"
@@ -52,7 +60,7 @@ async function renderCRUD(turno = "M") {
       const nomEsc = p.nombre.replace(/'/g, "\\'")
       rows += `<tr class="row-est-${p.estacion} ${p.activo ? "" : "inactivo"}" data-pid="${p.id}">
         <td class="font-mono text-xs text-slate-500 font-bold">${displayCama(p.cama, p.estacion)}</td>
-        <td class="font-medium">${p.nombre}</td>
+        <td class="font-medium">${p.nombre}${p.activo ? "" : ` <span class="badge-inactivo">Inactivo</span>`}</td>
         <td class="text-slate-500 text-xs">${p.cedula}</td>
         <td>${accBadge}</td>
         <td class="text-xs text-slate-500">${p.tipo_filtro || "—"}</td>
@@ -61,7 +69,7 @@ async function renderCRUD(turno = "M") {
         <td class="text-center">
           ${p.activo
             ? `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Activo</span>`
-            : `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">Inactivo</span>`}
+            : `<span class="badge-inactivo">Inactivo</span>${motivoInactivoHTML(p)}`}
         </td>
         <td class="text-right">
           <div class="flex gap-1 justify-end">
@@ -147,8 +155,16 @@ function _formPaciente(p = null) {
   // Cama 1-48: si editando, calcular el global
   const camaGlobal = p ? displayCama(p.cama, p.estacion) : ""
 
-  const accesoOpts = ACCESO_OPCIONES.map(o =>
-    `<option value="${o.v}" ${p?.acceso === o.v ? "selected" : ""}>${o.l}</option>`).join("")
+  const accesoOpts = ACCESO_TIPOS.map(o =>
+    `<option value="${o.v}" ${(p?.acceso || "") === o.v ? "selected" : ""}>${o.l}</option>`).join("")
+  const estadoOpts = `<option value="">— Elegir —</option>` + FAV_ESTADOS.map(o =>
+    `<option value="${o.v}" ${p?.acceso_estado === o.v ? "selected" : ""}>${o.l}</option>`).join("")
+  const calibreOpts = `<option value="">— Sin definir —</option>` + FAV_CALIBRES.map(c =>
+    `<option value="${c}" ${p?.acceso_calibre === c ? "selected" : ""}>Calibre ${c}</option>`).join("")
+  const sitioOpts = `<option value="">— Elegir —</option>` + CY_SITIOS.map(o =>
+    `<option value="${o.v}" ${p?.acceso_sitio === o.v ? "selected" : ""}>${o.l}</option>`).join("")
+  const motivoOpts = `<option value="">— Elegir —</option>` + MOTIVOS_INACTIVO.map(o =>
+    `<option value="${o.v}" ${p?.motivo_inactivo === o.v ? "selected" : ""}>${o.l}</option>`).join("")
 
   const filtroList = FILTROS_COMUNES.map(f =>
     `<option value="${f}">${f}</option>`).join("")
@@ -190,7 +206,7 @@ function _formPaciente(p = null) {
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="form-label">Peso seco (kg)</label>
-          <input id="f-peso-seco" type="number" step="0.1" min="30" max="150" class="form-input"
+          <input id="f-peso-seco" type="number" step="0.1" min="30" max="150" class="form-input" oninput="_actualizarTotalHep()"
             value="${p?.peso_seco != null ? p.peso_seco : ""}" placeholder="Ej. 65.5" />
         </div>
         <div>
@@ -205,13 +221,25 @@ function _formPaciente(p = null) {
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="form-label">Acceso vascular</label>
-          <select id="f-acceso" class="form-input form-select" onchange="_toggleAccesoCm()">
-            ${accesoOpts}
-          </select>
+          <label class="form-label" for="f-acceso">Acceso vascular</label>
+          <select id="f-acceso" class="form-input form-select" onchange="_toggleAcceso()">${accesoOpts}</select>
         </div>
-        <div id="f-acceso-cm-group" class="${p?.acceso === "FAV_ANE" ? "" : "hidden"}">
-          <label class="form-label">Cm cinta acetato (FAV ANE)</label>
+        <div id="grp-fav-estado" class="${p?.acceso === "FAV" ? "" : "hidden"}">
+          <label class="form-label" for="f-acceso-estado">Estado de la fístula *</label>
+          <select id="f-acceso-estado" class="form-input form-select" onchange="_toggleAcceso()">${estadoOpts}</select>
+        </div>
+        <div id="grp-cy-sitio" class="${p?.acceso === "CY" ? "" : "hidden"}">
+          <label class="form-label" for="f-acceso-sitio">Sitio del catéter *</label>
+          <select id="f-acceso-sitio" class="form-input form-select">${sitioOpts}</select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 ${p?.acceso === "FAV" ? "" : "hidden"}" id="grp-fav-extra">
+        <div>
+          <label class="form-label" for="f-acceso-calibre">Calibre de aguja</label>
+          <select id="f-acceso-calibre" class="form-input form-select">${calibreOpts}</select>
+        </div>
+        <div id="f-acceso-cm-group" class="${p?.acceso_estado === "aneurismatica" ? "" : "hidden"}">
+          <label class="form-label" for="f-acceso-cm">Cm cinta acetato (aneurismática)</label>
           <input id="f-acceso-cm" type="number" min="5" max="30" class="form-input"
             value="${p?.acceso_cm || 15}" placeholder="15" />
         </div>
@@ -225,9 +253,20 @@ function _formPaciente(p = null) {
           <datalist id="filtros-list">${filtroList}</datalist>
         </div>
         <div>
-          <label class="form-label">Heparina (UI/h, 10-20)</label>
+          <label class="form-label" for="f-heparina">Heparina (UI/h, 10-20)</label>
           <input id="f-heparina" type="number" min="10" max="20" class="form-input"
             value="${p?.heparina_unidades || ""}" placeholder="0 = sin heparina" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="form-label" for="f-heparina-ui-kg">Heparina (UI/kg, 10-20)</label>
+          <input id="f-heparina-ui-kg" type="number" min="10" max="20" step="1" class="form-input"
+            value="${p?.heparina_ui_kg ?? ""}" placeholder="10-20" oninput="_actualizarTotalHep()" />
+        </div>
+        <div>
+          <label class="form-label">Total calculado</label>
+          <p id="hep-total" class="text-xs text-slate-600 pt-2" aria-live="polite"></p>
         </div>
       </div>
 
@@ -273,8 +312,18 @@ function _formPaciente(p = null) {
       <p id="epo-preview" class="text-xs text-blue-600 font-medium min-h-[1rem]"></p>
 
       ${p ? `<div class="flex items-center gap-2 mt-1">
-        <input type="checkbox" id="f-activo" ${p.activo ? "checked" : ""} class="w-4 h-4" />
+        <input type="checkbox" id="f-activo" ${p.activo ? "checked" : ""} class="w-4 h-4" onchange="_toggleMotivo()" />
         <label for="f-activo" class="text-sm text-slate-600 cursor-pointer">Paciente activo</label>
+      </div>
+      <div id="grp-motivo" class="grid grid-cols-2 gap-3 ${p.activo ? "hidden" : ""}">
+        <div>
+          <label class="form-label" for="f-motivo">Motivo de inactividad *</label>
+          <select id="f-motivo" class="form-input form-select">${motivoOpts}</select>
+        </div>
+        <div>
+          <label class="form-label" for="f-motivo-texto">Detalle (opcional)</label>
+          <input id="f-motivo-texto" class="form-input" maxlength="200" value="${escHtml(p.motivo_inactivo_texto || "")}" />
+        </div>
       </div>` : ""}
 
       <div id="form-error" class="text-red-600 text-sm hidden"></div>
@@ -294,9 +343,23 @@ function _actualizarEstacion() {
   $("f-estacion").value = est
 }
 
-function _toggleAccesoCm() {
+function _toggleAcceso() {
   const acceso = $("f-acceso")?.value
-  $("f-acceso-cm-group").classList.toggle("hidden", acceso !== "FAV_ANE")
+  $("grp-fav-estado").classList.toggle("hidden", acceso !== "FAV")
+  $("grp-fav-extra").classList.toggle("hidden", acceso !== "FAV")
+  $("grp-cy-sitio").classList.toggle("hidden", acceso !== "CY")
+  $("f-acceso-cm-group").classList.toggle("hidden", !(acceso === "FAV" && $("f-acceso-estado")?.value === "aneurismatica"))
+}
+
+function _toggleMotivo() {
+  $("grp-motivo")?.classList.toggle("hidden", !!$("f-activo")?.checked)
+}
+
+/** R4: total de heparina = UI/kg × peso seco (solo cálculo informativo) */
+function _actualizarTotalHep() {
+  const el = $("hep-total"); if (!el) return
+  const uikg = parseFloat($("f-heparina-ui-kg")?.value), ps = parseFloat($("f-peso-seco")?.value)
+  el.textContent = (uikg > 0 && ps > 0) ? `≈ ${Math.round(uikg * ps)} UI (UI/kg × peso seco)` : ""
 }
 
 function _actualizarPreviewEpo() {
@@ -327,7 +390,11 @@ function _leerFormulario() {
   const pesoSeco = $("f-peso-seco").value === "" ? null : parseFloat($("f-peso-seco").value)
   const watson   = $("f-watson").value === "" ? null : parseFloat($("f-watson").value)
   const acceso       = $("f-acceso").value || null
-  const accesoCm     = acceso === "FAV_ANE" ? (parseInt($("f-acceso-cm").value) || 15) : null
+  const accesoEstado = acceso === "FAV" ? ($("f-acceso-estado").value || null) : null
+  const accesoCal    = acceso === "FAV" && $("f-acceso-calibre").value ? parseInt($("f-acceso-calibre").value) : null
+  const accesoSitio  = acceso === "CY" ? ($("f-acceso-sitio").value || null) : null
+  const accesoCm     = accesoEstado === "aneurismatica" ? (parseInt($("f-acceso-cm").value) || 15) : null
+  const hepUiKg      = $("f-heparina-ui-kg").value === "" ? null : parseInt($("f-heparina-ui-kg").value)
   const hepUn        = $("f-heparina").value === "" ? null : parseInt($("f-heparina").value)
   const filtro       = $("f-filtro").value.trim() || null
   const medico       = $("f-medico").value.trim() || null
@@ -341,6 +408,11 @@ function _leerFormulario() {
   if (!turno)   return err("Seleccione un turno")
   if (isNaN(camaG) || camaG < 1 || camaG > 48) return err("La cama debe ser 1-48")
   if (isNaN(estacion)) return err("Cama inválida — no se pudo determinar la estación")
+  if (acceso === "FAV" && !accesoEstado) return err("Indique el estado de la fístula")
+  if (acceso === "CY" && !accesoSitio) return err("Indique el sitio del catéter (yugular o femoral)")
+  if (hepUiKg != null && (isNaN(hepUiKg) || hepUiKg < 10 || hepUiKg > 20)) return err("Heparina UI/kg debe estar entre 10 y 20")
+  const activoChk0 = $("f-activo")
+  if (activoChk0 && !activoChk0.checked && !$("f-motivo").value) return err("Indique el motivo de inactividad")
 
   const camaLocal = ((camaG - 1) % 16) + 1   // convierte 1-48 a 1-16 por estación
 
@@ -348,12 +420,19 @@ function _leerFormulario() {
     nombre, cedula, turno,
     estacion, cama: camaLocal,
     peso_seco: pesoSeco, watson, activo: true,
-    acceso, acceso_cm: accesoCm,
+    acceso, acceso_estado: accesoEstado, acceso_calibre: accesoCal, acceso_sitio: accesoSitio, acceso_cm: accesoCm,
+    heparina_ui_kg: hepUiKg,
     heparina_unidades: hepUn, tipo_filtro: filtro, medico,
     dias, epo_mensual: epoMensual, epo_dosis: epoDosis, hierro_mensual: hierroMens,
   }
   const activoChk = $("f-activo")
-  if (activoChk) data.activo = activoChk.checked
+  if (activoChk) {
+    data.activo = activoChk.checked
+    if (!data.activo) {
+      data.motivo_inactivo = $("f-motivo").value || null
+      data.motivo_inactivo_texto = $("f-motivo-texto").value.trim() || null
+    }
+  }
   return data
 }
 
@@ -386,6 +465,7 @@ function crudEditar(id) {
     `<button onclick="closeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">Cancelar</button>
      <button onclick="_guardarEdicion(${id})" class="bg-blue-800 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Guardar cambios</button>`
   )
+  _actualizarTotalHep()
 }
 
 async function _guardarEdicion(id) {
@@ -419,6 +499,14 @@ function crudEliminar(id, nombre) {
          </div>
        </div>
        <p class="text-sm text-slate-500">Esta acción <strong>no elimina</strong> al paciente de la base de datos.</p>
+       <div class="grid grid-cols-2 gap-3">
+         <div><label class="form-label" for="el-motivo">Motivo *</label>
+           <select id="el-motivo" class="form-input form-select"><option value="">— Elegir —</option>
+             ${MOTIVOS_INACTIVO.map(o => `<option value="${o.v}">${o.l}</option>`).join("")}</select></div>
+         <div><label class="form-label" for="el-texto">Detalle (opcional)</label>
+           <input id="el-texto" class="form-input" maxlength="200" /></div>
+       </div>
+       <div id="el-error" class="text-red-600 text-sm hidden"></div>
      </div>`,
     `<button onclick="closeModal()"
        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">
@@ -432,9 +520,12 @@ function crudEliminar(id, nombre) {
 }
 
 async function _confirmarEliminar(id) {
+  const motivo = $("el-motivo")?.value
+  if (!motivo) { const e = $("el-error"); e.textContent = "Indique el motivo"; e.classList.remove("hidden"); return }
+  const motivo_texto = $("el-texto").value.trim() || null
   closeModal()
   try {
-    await apiPatch(`/api/pacientes/${id}/toggle-activo`, {})
+    await apiPatch(`/api/pacientes/${id}/toggle-activo`, { motivo, motivo_texto })
     toast("Paciente retirado de las estaciones")
     renderCRUD(_crudTurno)
   } catch (e) { toast(e.message, "err") }

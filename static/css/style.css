@@ -476,3 +476,60 @@ tr:hover .btn-reemplazar { opacity: 1; }
 /* ── Roles y módulos opcionales ──────────────────────────────────────────── */
 .sin-ia .solo-ia,
 .modo-demo .solo-admin { display: none !important; }
+
+/* ── R4: datos del paciente en la fila (filtro, heparina, cédula, UI) ─────── */
+.pac-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.pac-chip {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;               /* contraste ≥ 7:1 sobre #f1f5f9 */
+  font-size: 0.68rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+/* ── R3: PA de pie y FC junto al peso de salida ───────────────────────────── */
+input[type="number"].salida-input {
+  width: 46px;
+  text-align: right;
+  padding: 2px 3px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+.pa-pie input[type="number"].salida-input { width: 44px; }
+input[type="number"].salida-input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+input[type="number"].salida-input:disabled { background: #f1f5f9; color: #94a3b8; }
+input[type="number"].salida-input[aria-invalid="true"] { border-color: #dc2626; background: #fef2f2; }
+
+.btn-resumen {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  cursor: pointer;
+}
+.btn-resumen:hover { background: #dbeafe; }
+.btn-resumen:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
+
+/* Modal ancho (resumen de sesiones) */
+.modal-box.modal-ancho { max-width: 980px; }
+.tbl-resumen { border-collapse: collapse; font-size: 0.75rem; }
+.tbl-resumen th { background: #1e3a5f; color: #e2e8f0; padding: 5px 8px; text-align: center; white-space: nowrap; }
+.tbl-resumen td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; }
+.tbl-cierre-detalle th, .tbl-cierre-detalle td { padding: 4px 8px; font-size: 0.75rem; }
+
+/* ── R10: paciente inactivo ───────────────────────────────────────────────── */
+.badge-inactivo {
+  display: inline-block; padding: 1px 8px; border-radius: 9999px;
+  background: #fee2e2; color: #991b1b; font-size: 0.7rem; font-weight: 700;
+  vertical-align: middle;
+}
+.motivo-inactivo { display: block; font-size: 0.68rem; color: #991b1b; margin-top: 1px; }
+.tbl-crud tr.inactivo td { background: #fff7f7; opacity: 0.8; }

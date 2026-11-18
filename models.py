@@ -16,11 +16,18 @@ class Paciente(Base):
     turno             = Column(String, nullable=False)    # M, T, N
     peso_seco         = Column(Float)
     activo            = Column(Boolean, default=True)
+    # R10: motivo de inactividad (solo cuando activo es falso). Ver services/pacientes.py
+    motivo_inactivo       = Column(String)   # hospitalizado | otro
+    motivo_inactivo_texto = Column(String)   # texto libre
     # Campos clínicos
-    acceso            = Column(String)   # CY | FAV_L | FAV_AR | FAV_ANE | F16 | F17
-    acceso_cm         = Column(Integer)  # solo FAV_ANE: cm de cinta de acetato
+    acceso            = Column(String)   # FAV | CY  (R1)
+    acceso_estado     = Column(String)   # FAV: limpia | alto_riesgo | aneurismatica
+    acceso_calibre    = Column(Integer)  # FAV: calibre de aguja 15 | 16 | 17
+    acceso_sitio      = Column(String)   # CY: yugular | femoral
+    acceso_cm         = Column(Integer)  # solo FAV aneurismática: cm de cinta de acetato
     heparina_unidades = Column(Integer)  # UI/h (10-20)
     tipo_filtro       = Column(String)   # R-300, R-400, B-18, B-20, etc.
+    heparina_ui_kg    = Column(Integer)  # R4: heparina en UI por kg de peso (10-20); heparina_unidades sigue siendo UI/h
     watson            = Column(Float)    # Volumen distribución Watson (litros)
     medico            = Column(String)   # Nefrólogo tratante
     # Programación EPO/Fe mensual
@@ -58,6 +65,10 @@ class Registro(Base):
     hierro             = Column(Boolean, default=False)
     observaciones      = Column(String, default="")
     ktv                = Column(Float)             # Kt/V medido en la sesión
+    # R3: última toma de pie al salir
+    pa_pie_sistolica   = Column(Integer)           # mmHg
+    pa_pie_diastolica  = Column(Integer)           # mmHg
+    fc                 = Column(Integer)           # lpm
     citrato            = Column(Boolean, default=False)  # CY disfuncional: citrato
     heparina_sodica    = Column(Boolean, default=False)  # CY disfuncional: hep. sódica
     transitorio_nombre      = Column(String)

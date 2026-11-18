@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import config
 import models
 import auth
+import migraciones
 from database import engine, SessionLocal
 from routers import pacientes, sesiones, cierre, programacion, laboratorios, historial, estadisticas, ia
 from routers import hl7  # «Próximamente»: inactivo mientras HL7_ENABLED=false
@@ -20,6 +21,8 @@ log = logging.getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     models.Base.metadata.create_all(bind=engine)
+    for accion in migraciones.aplicar(engine):   # columnas nuevas y conversión de datos antiguos
+        log.info("migración: %s", accion)
     if config.DEMO_MODE:
         import seed
         with SessionLocal() as db:

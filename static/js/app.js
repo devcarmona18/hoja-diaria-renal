@@ -43,32 +43,63 @@ function clsPerdida(perdida, ganancia) {
   return "perdida-ok"
 }
 
-/** Badge HTML de tipo de acceso vascular */
-function accesoHTML(p) {
-  if (!p || !p.acceso) return ""
-  const cm = p.acceso_cm || 15
-  const map = {
-    CY:      `<span class="badge-acceso badge-cy">CY</span>`,
-    FAV_L:   `<span class="badge-acceso badge-fav">FAV</span>`,
-    FAV_AR:  `<span class="badge-acceso badge-fav-ar">FAV ⚠</span>`,
-    FAV_ANE: `<span class="badge-acceso badge-fav-ane">⚠ ${cm}cm</span>`,
-    F16:     `<span class="badge-acceso badge-fav">G16</span>`,
-    F17:     `<span class="badge-acceso badge-fav">G17</span>`,
-  }
-  return map[p.acceso] || ""
+/** Escapa texto para insertarlo en HTML */
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
 }
 
-/** Subtítulo informativo: filtro + dosis heparina calculada + watson */
-function pacSubtxt(p) {
-  if (!p) return ""
-  const parts = []
-  if (p.tipo_filtro) parts.push(p.tipo_filtro)
-  if (p.heparina_unidades && p.peso_seco) {
-    const dosis = Math.round(p.peso_seco * 4 * p.heparina_unidades)
-    parts.push(`Hep: ${dosis} UI (${p.heparina_unidades} UI/h)`)
+const ACCESO_ESTADOS = { limpia: "limpia", alto_riesgo: "alto riesgo", aneurismatica: "aneurismática" }
+
+/** Texto legible del acceso: "FAV limpia, aguja calibre 16" · "Catéter (CY) yugular" */
+function accesoTexto(p) {
+  if (!p || !p.acceso) return "—"
+  if (p.acceso === "FAV") {
+    let t = "FAV" + (p.acceso_estado ? " " + (ACCESO_ESTADOS[p.acceso_estado] || p.acceso_estado) : "")
+    if (p.acceso_estado === "aneurismatica" && p.acceso_cm) t += ` (${p.acceso_cm} cm)`
+    if (p.acceso_calibre) t += `, aguja calibre ${p.acceso_calibre}`
+    return t
   }
-  if (p.watson) parts.push(`V=${p.watson.toFixed(1)} L`)
-  return parts.join(" · ")
+  if (p.acceso === "CY") return "Catéter (CY)" + (p.acceso_sitio ? " " + p.acceso_sitio : "")
+  return p.acceso
+}
+
+/** Badge HTML de tipo de acceso vascular (R1: FAV con estado y calibre · CY yugular/femoral) */
+function accesoHTML(p) {
+  if (!p || !p.acceso) return ""
+  const tit = escHtml(accesoTexto(p))
+  let cls, txt
+  if (p.acceso === "CY") {
+    cls = "badge-cy"
+    txt = "CY" + (p.acceso_sitio === "yugular" ? " yug." : p.acceso_sitio === "femoral" ? " fem." : "")
+  } else if (p.acceso === "FAV") {
+    const est = p.acceso_estado
+    cls = est === "alto_riesgo" ? "badge-fav-ar" : est === "aneurismatica" ? "badge-fav-ane" : "badge-fav"
+    txt = est === "aneurismatica" ? `⚠ FAV${p.acceso_cm ? " " + p.acceso_cm + "cm" : ""}`
+        : est === "alto_riesgo"   ? "FAV ⚠" : "FAV"
+    if (p.acceso_calibre) txt += ` ${p.acceso_calibre}G`
+  } else return ""
+  return `<span class="badge-acceso ${cls}" title="${tit}" aria-label="Acceso vascular: ${tit}">${escHtml(txt)}</span>`
+}
+
+/** R4: datos del paciente visibles en la fila: filtro, heparina, cédula, UI (+ Watson) */
+function pacInfoHTML(p) {
+  if (!p) return ""
+  const chips = []
+  const chip = (txt, titulo) => chips.push(`<span class="pac-chip" title="${escHtml(titulo)}">${escHtml(txt)}</span>`)
+  if (p.tipo_filtro) chip(`Filtro ${p.tipo_filtro}`, `Filtro: ${p.tipo_filtro}`)
+  if (p.heparina_ui_kg != null) {
+    // R4: heparina en UI/kg; el total es un cálculo (UI/kg × peso seco)
+    const total = p.peso_seco ? Math.round(p.heparina_ui_kg * p.peso_seco) : null
+    chip(`Hep ${p.heparina_ui_kg} UI/kg` + (total ? ` ≈ ${total} UI` : ""),
+         `Heparina: ${p.heparina_ui_kg} UI/kg` + (total ? ` · ≈ total ${total} UI (cálculo: UI/kg × peso seco ${p.peso_seco} kg)` : ""))
+  } else if (p.heparina_unidades) {
+    const dosis = p.peso_seco ? Math.round(p.peso_seco * 4 * p.heparina_unidades) : null
+    chip(dosis ? `Hep ${dosis} UI` : `Hep ${p.heparina_unidades} UI/h`,
+         `Heparina: ${p.heparina_unidades} UI/h` + (dosis ? ` · dosis total ${dosis} UI (peso seco × 4 h × UI/h)` : ""))
+  }
+  if (p.cedula) chip(`CC ${p.cedula}`, `Cédula: ${p.cedula}`)
+  if (p.watson) chip(`V ${p.watson.toFixed(1)} L`, `Volumen de Watson: ${p.watson.toFixed(1)} L`)
+  return chips.length ? `<span class="pac-chips">${chips.join("")}</span>` : ""
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -100,7 +131,8 @@ async function apiPut(path, body)    { return (await _apiCheck(await fetch(path,
 async function apiDelete(path)       { await _apiCheck(await fetch(path, { method: "DELETE" })) }
 
 // ── Modal global ──────────────────────────────────────────────────────────────
-function openModal(title, bodyHTML, footerHTML) {
+function openModal(title, bodyHTML, footerHTML, opts = {}) {
+  document.querySelector("#modal-overlay .modal-box")?.classList.toggle("modal-ancho", !!opts.ancho)
   $("modal-title").innerHTML = title
   $("modal-body").innerHTML  = bodyHTML
   $("modal-footer").innerHTML = footerHTML
@@ -125,6 +157,24 @@ function updateHeader() {
     $("header-cerrada").classList.toggle("hidden", !G.sesion.cerrada)
   }
 }
+
+// Menú de la pantalla de inicio. R8: «Próximamente» siempre en la ÚLTIMA posición.
+const MENU_INICIO = [
+  { id: "pacientes",     accion: "renderCRUD()",          icono: "👥", titulo: "Pacientes",         sub: "CRUD · acceso · heparina · filtro",
+    hover: "hover:bg-amber-50",   borde: "border-amber-200",   texto: "text-amber-800" },
+  { id: "historial",     accion: "renderHistorial()",     icono: "📊", titulo: "Historial",         sub: "Por fecha / mes",
+    hover: "hover:bg-blue-50",    borde: "border-blue-200",    texto: "text-blue-800" },
+  { id: "estadisticas",  accion: "renderEstadisticas()",  icono: "📈", titulo: "Estadísticas",      sub: "Sesiones por paciente / mes",
+    hover: "hover:bg-emerald-50", borde: "border-emerald-200", texto: "text-emerald-800" },
+  { id: "labs",          accion: "renderLabPanel()",      icono: "🔬", titulo: "Panel Labs (F5)",   sub: "Hb, PTH, Ferritina… por color",
+    hover: "hover:bg-purple-50",  borde: "border-purple-200",  texto: "text-purple-800" },
+  { id: "epo",           accion: "renderAutoProgram()",   icono: "💊", titulo: "EPO / Fe del mes",  sub: "Auto-programación mensual",
+    hover: "hover:bg-teal-50",    borde: "border-teal-200",    texto: "text-teal-800" },
+  { id: "ia",            accion: "renderIA(null, null)",  icono: "🤖", titulo: "IA Clínica (F4)",   sub: "Consulta sobre historial del paciente",
+    hover: "hover:bg-indigo-50",  borde: "border-indigo-200",  texto: "text-indigo-800", extra: "solo-ia solo-admin" },
+  { id: "proximamente",  accion: "renderProximamente()",  icono: "🚀", titulo: "Próximamente",      sub: "Integración con las máquinas AK 98",
+    hover: "hover:bg-slate-50",   borde: "border-slate-200",   texto: "text-slate-800" },
+]
 
 // ── VIEW: DASHBOARD ───────────────────────────────────────────────────────────
 function goHome() {
@@ -177,45 +227,16 @@ function renderDashboard() {
         <div id="dash-error" class="text-red-600 text-sm text-center mt-3 hidden"></div>
       </div>
 
-      <!-- Accesos rápidos -->
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="renderCRUD()"
-          class="bg-white hover:bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">👥</div>
-          <div class="font-semibold text-sm">Pacientes</div>
-          <div class="text-xs text-slate-400 mt-0.5">CRUD · acceso · heparina · filtro</div>
-        </button>
-        <button onclick="renderHistorial()"
-          class="bg-white hover:bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">📊</div>
-          <div class="font-semibold text-sm">Historial</div>
-          <div class="text-xs text-slate-400 mt-0.5">Por fecha / mes</div>
-        </button>
-        <button onclick="renderEstadisticas()"
-          class="bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">📈</div>
-          <div class="font-semibold text-sm">Estadísticas</div>
-          <div class="text-xs text-slate-400 mt-0.5">Sesiones por paciente / mes</div>
-        </button>
-        <button onclick="renderLabPanel()"
-          class="bg-white hover:bg-purple-50 border border-purple-200 text-purple-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">🔬</div>
-          <div class="font-semibold text-sm">Panel Labs (F5)</div>
-          <div class="text-xs text-slate-400 mt-0.5">Hb, PTH, Ferritina… por color</div>
-        </button>
-        <button onclick="renderAutoProgram()"
-          class="bg-white hover:bg-teal-50 border border-teal-200 text-teal-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">💊</div>
-          <div class="font-semibold text-sm">EPO / Fe del mes</div>
-          <div class="text-xs text-slate-400 mt-0.5">Auto-programación mensual</div>
-        </button>
-        <button onclick="renderIA(null, null)"
-          class="solo-ia solo-admin bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">🤖</div>
-          <div class="font-semibold text-sm">IA Clínica (F4)</div>
-          <div class="text-xs text-slate-400 mt-0.5">Consulta sobre historial del paciente</div>
-        </button>
-      </div>
+      <!-- Accesos rápidos (menú). El orden lo define MENU_INICIO; «Próximamente» va SIEMPRE al final. -->
+      <nav aria-label="Secciones" class="grid grid-cols-2 gap-3" id="menu-inicio">
+        ${MENU_INICIO.map(m => `
+        <button onclick="${m.accion}" data-menu="${m.id}"
+          class="${m.extra ? m.extra + " " : ""}bg-white ${m.hover} border ${m.borde} ${m.texto} rounded-xl p-4 text-left shadow-sm">
+          <div class="text-xl mb-1" aria-hidden="true">${m.icono}</div>
+          <div class="font-semibold text-sm">${m.titulo}</div>
+          <div class="text-xs text-slate-400 mt-0.5">${m.sub}</div>
+        </button>`).join("")}
+      </nav>
     </div>
   `
 }
@@ -313,7 +334,7 @@ function renderSesion(estFiltro = 0) {
 
     if (!filasPrinc.length) continue
 
-    tbodyHTML += `<tr class="row-estacion-hdr est-${est}"><td colspan="13">ESTACIÓN ${est} — MACRO ${EST_LABEL[est].toUpperCase()} · CAMAS ${(est-1)*16+1}–${est*16}</td></tr>`
+    tbodyHTML += `<tr class="row-estacion-hdr est-${est}"><td colspan="15">ESTACIÓN ${est} — MACRO ${EST_LABEL[est].toUpperCase()} · CAMAS ${(est-1)*16+1}–${est*16}</td></tr>`
     filasPrinc.forEach(r => {
       tbodyHTML += (r.asistencia === "H" && r.transitorio_paciente)
         ? buildRowSuplente(r, cerrada)
@@ -327,7 +348,7 @@ function renderSesion(estFiltro = 0) {
       const prioB = b.asistencia === "H" ? 0 : b.asistencia === "NA" ? 1 : 2
       return prioA !== prioB ? prioA - prioB : (a.paciente?.cama ?? 0) - (b.paciente?.cama ?? 0)
     })
-    tbodyHTML += `<tr class="row-hna-section-hdr"><td colspan="13">🏥&nbsp; HOSPITALIZADOS · NO ASISTEN · FALLECIDOS&nbsp;(${hnaRows.length})</td></tr>`
+    tbodyHTML += `<tr class="row-hna-section-hdr"><td colspan="15">🏥&nbsp; HOSPITALIZADOS · NO ASISTEN · FALLECIDOS&nbsp;(${hnaRows.length})</td></tr>`
     hnaRows.forEach(r => { tbodyHTML += buildHnaRow(r, cerrada) })
   }
 
@@ -361,13 +382,15 @@ function renderSesion(estFiltro = 0) {
               <th>Estado</th>
               <th>P.Ent.</th>
               <th>P.Sal.</th>
+              <th title="Presión arterial de pie al salir (sistólica / diastólica, mmHg)">PA pie</th>
+              <th title="Frecuencia cardiaca al salir (lpm)">FC</th>
               <th>Pérd.</th>
               <th>GID</th>
               <th>EPO</th>
               <th>Fe</th>
               <th>Kt/V</th>
               <th title="Catéter: Citrato (C) / Hep.Sódica (HS)">Cat.</th>
-              <th>Obs.</th>
+              <th>Obs. / Resumen</th>
             </tr>
           </thead>
           <tbody id="tbl-body">${tbodyHTML}</tbody>
@@ -381,6 +404,30 @@ function renderSesion(estFiltro = 0) {
   `
 }
 
+// R3: rangos válidos (espejo de schemas.RegistroUpdate; el servidor vuelve a validar)
+const RANGOS_SALIDA = {
+  pa_pie_sistolica:  { min: 50, max: 260, etiqueta: "PA sistólica" },
+  pa_pie_diastolica: { min: 30, max: 150, etiqueta: "PA diastólica" },
+  fc:                { min: 30, max: 220, etiqueta: "FC" },
+}
+
+/** Celdas PA de pie (sist/diast) y FC, justo a la derecha del peso de salida */
+function celdasSalidaHTML(r, dis) {
+  const inp = (campo, ph, aria) => `<input type="number" step="1" min="${RANGOS_SALIDA[campo].min}" max="${RANGOS_SALIDA[campo].max}"
+      class="salida-input" data-campo="${campo}" value="${r[campo] ?? ""}" placeholder="${ph}" ${dis}
+      aria-label="${aria} (${RANGOS_SALIDA[campo].min}-${RANGOS_SALIDA[campo].max})"
+      oninput="schedSave(${r.id},'${campo}',this.value)" />`
+  return `<td><div class="flex items-center gap-0.5 pa-pie">${inp("pa_pie_sistolica", "sis", "PA de pie sistólica")}<span class="text-slate-400">/</span>${inp("pa_pie_diastolica", "dia", "PA de pie diastólica")}</div></td>
+      <td>${inp("fc", "lpm", "Frecuencia cardiaca")}</td>`
+}
+
+/** Botón al final de la fila: abre el resumen de sesiones del paciente */
+function btnResumenHTML(p) {
+  if (!p) return ""
+  return `<button type="button" class="btn-resumen" onclick="abrirResumenPaciente(${p.id})"
+      title="Resumen de sesiones recientes de ${escHtml(p.nombre)}" aria-label="Resumen de sesiones de ${escHtml(p.nombre)}">📋</button>`
+}
+
 function buildRow(r, cerrada) {
   const p = r.paciente; if (!p) return ""
   const rowCls = r.asistencia === "F" ? "row-F"
@@ -390,7 +437,7 @@ function buildRow(r, cerrada) {
   const perdCls  = clsPerdida(r.perdida_real, r.ganancia_id)
   const perdHTML = r.perdida_real != null ? `<span class="${perdCls}">${r.perdida_real.toFixed(2)}</span>` : "—"
   const gidHTML  = r.ganancia_id  != null ? `<span class="ganancia-val">${r.ganancia_id.toFixed(2)}</span>` : "—"
-  const subtxt   = pacSubtxt(p)
+  const subtxt   = pacInfoHTML(p)
   const hasTrans = !!r.transitorio_nombre
 
   const catCell = p.acceso === "CY" ? `<td>
@@ -416,7 +463,7 @@ function buildRow(r, cerrada) {
           ${accesoHTML(p)}
           <div>
             <span class="font-medium text-sm ${hasTrans ? "line-through text-slate-400" : ""}">${p.nombre}</span>
-            ${subtxt ? `<span class="pac-subtxt">${subtxt}</span>` : ""}
+            ${subtxt}
           </div>
           ${!cerrada ? `<button class="btn-reemplazar" onclick="abrirModalReemplazar(${r.id})" title="Reemplazar este paciente hoy">↕</button>` : ""}
         </div>
@@ -434,6 +481,7 @@ function buildRow(r, cerrada) {
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_entrada',this.value)" /></td>
       <td><input type="number" step="0.1" min="30" max="150" class="peso-input" value="${r.peso_salida ?? ""}"
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_salida',this.value)" /></td>
+      ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
       <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
@@ -444,8 +492,8 @@ function buildRow(r, cerrada) {
           value="${r.ktv != null ? r.ktv : ""}" placeholder="—" ${dis}
           oninput="schedSave(${r.id},'ktv',this.value)" /></td>
       ${catCell}
-      <td><input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="…" ${dis}
-          oninput="schedSave(${r.id},'observaciones',this.value)" /></td>
+      <td><div class="flex items-center gap-1"><input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="…" ${dis}
+          oninput="schedSave(${r.id},'observaciones',this.value)" />${btnResumenHTML(r.paciente)}</div></td>
     </tr>`
 }
 
@@ -456,7 +504,7 @@ function buildRowSuplente(r, cerrada) {
   const perdCls = clsPerdida(r.perdida_real, r.ganancia_id)
   const perdHTML = r.perdida_real != null ? `<span class="${perdCls}">${r.perdida_real.toFixed(2)}</span>` : "—"
   const gidHTML  = r.ganancia_id  != null ? `<span class="ganancia-val">${r.ganancia_id.toFixed(2)}</span>` : "—"
-  const subtxt  = pacSubtxt(p)
+  const subtxt  = pacInfoHTML(p)
 
   const catCell = p.acceso === "CY" ? `<td>
     <label class="flex items-center gap-0.5 text-xs cursor-pointer select-none">
@@ -481,7 +529,7 @@ function buildRowSuplente(r, cerrada) {
           ${accesoHTML(p)}
           <div>
             <span class="font-medium text-sm">${p.nombre}</span>
-            ${subtxt ? `<span class="pac-subtxt">${subtxt}</span>` : ""}
+            ${subtxt}
           </div>
           ${!cerrada ? `<button class="btn-restaurar btn-restaurar-hover" onclick="restaurarPaciente(${r.id})" title="Restaurar paciente original">↩</button>` : ""}
         </div>
@@ -499,6 +547,7 @@ function buildRowSuplente(r, cerrada) {
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_entrada',this.value)" /></td>
       <td><input type="number" step="0.1" min="30" max="150" class="peso-input" value="${r.peso_salida ?? ""}"
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_salida',this.value)" /></td>
+      ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
       <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
@@ -509,8 +558,8 @@ function buildRowSuplente(r, cerrada) {
           value="${r.ktv != null ? r.ktv : ""}" placeholder="—" ${dis}
           oninput="schedSave(${r.id},'ktv',this.value)" /></td>
       ${catCell}
-      <td><input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="…" ${dis}
-          oninput="schedSave(${r.id},'observaciones',this.value)" /></td>
+      <td><div class="flex items-center gap-1"><input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="…" ${dis}
+          oninput="schedSave(${r.id},'observaciones',this.value)" />${btnResumenHTML(r.paciente)}</div></td>
     </tr>`
 }
 
@@ -538,12 +587,13 @@ function buildHnaRow(r, cerrada) {
         </div>
       </td>
       <td class="text-slate-400 text-xs">${fmtPeso(p.peso_seco)}</td>
-      <td colspan="10">
+      <td colspan="12">
         <div class="flex items-center gap-2">
           ${!cerrada && r.asistencia !== "F" ? `<button class="btn-restaurar" onclick="restaurarPaciente(${r.id})" title="Restaurar al puesto">↩ Restaurar</button>` : ""}
-          <input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="Observación…"
+          <input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="Observación…"
             ${cerrada ? "disabled" : ""}
             oninput="schedSave(${r.id},'observaciones',this.value)" />
+          ${btnResumenHTML(p)}
         </div>
       </td>
     </tr>`
@@ -677,6 +727,43 @@ async function restaurarPaciente(rid) {
   } catch (e) { toast(e.message, "err") }
 }
 
+// ── R3: Resumen de sesiones del paciente (botón junto a Observaciones) ───────
+async function abrirResumenPaciente(pid) {
+  const p = G.registros.map(r => r.paciente).find(x => x?.id === pid)
+        || G.registros.map(r => r.transitorio_paciente).find(x => x?.id === pid)
+  const nombre = p?.nombre || "Paciente"
+  const hasta = G.sesion?.fecha || hoy()
+  const cerrar = `<button onclick="closeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">Cerrar</button>`
+  openModal(`Resumen de sesiones · ${escHtml(nombre)}`, `<p class="text-sm text-slate-500" role="status">Cargando…</p>`, cerrar, { ancho: true })
+  let data
+  try { data = await apiGet(`/api/pacientes/${pid}/resumen-sesiones?dias=14&hasta=${hasta}`) }
+  catch (e) { closeModal(); toast(e.message, "err"); return }
+
+  const num = (v, d = 1) => v == null ? "—" : Number(v).toFixed(d)
+  const pa  = s => (s.pa_pie_sistolica != null && s.pa_pie_diastolica != null) ? `${s.pa_pie_sistolica}/${s.pa_pie_diastolica}`
+                 : (s.pa_pie_sistolica ?? s.pa_pie_diastolica ?? "—")
+  const filas = data.sesiones.map(s => `<tr>
+      <td class="text-left whitespace-nowrap">${fmtFecha(s.fecha)}</td>
+      <td>${TURNOS[s.turno] || s.turno}</td>
+      <td class="font-semibold">${s.asistencia || "—"}</td>
+      <td>${num(s.peso_entrada)}</td><td>${num(s.peso_salida)}</td><td>${num(s.peso_seco)}</td>
+      <td>${num(s.ganancia, 2)}</td><td>${num(s.perdida, 2)}</td>
+      <td class="whitespace-nowrap">${pa(s)}</td><td>${s.fc ?? "—"}</td><td>${num(s.ktv, 2)}</td>
+      <td class="text-left">${escHtml(s.observaciones) || "—"}</td>
+    </tr>`).join("")
+  const inactivo = data.paciente.activo ? "" : ` <span class="badge-inactivo">Inactivo</span>`
+  openModal(
+    `Resumen de sesiones · ${escHtml(data.paciente.nombre)}${inactivo}`,
+    `<p class="text-xs text-slate-500 mb-2">Últimos ${data.dias} días (${fmtFecha(data.desde)} – ${fmtFecha(data.hasta)}) · ${data.sesiones.length} sesión(es). Pesos en kg; ganancia = P.Ent − P.Seco.</p>
+     ${data.sesiones.length ? `<div class="overflow-x-auto"><table class="tbl-resumen w-full">
+       <caption class="sr-only">Sesiones recientes del paciente</caption>
+       <thead><tr><th class="text-left">Fecha</th><th>Turno</th><th>Asist.</th><th>P.Ent.</th><th>P.Sal.</th><th>P.Seco</th>
+         <th>Ganancia</th><th>Pérdida</th><th>PA pie</th><th>FC</th><th>Kt/V</th><th class="text-left">Observaciones</th></tr></thead>
+       <tbody>${filas}</tbody></table></div>`
+       : `<p class="text-sm text-slate-500 py-6 text-center">Sin sesiones registradas en ese período.</p>`}`,
+    cerrar, { ancho: true })
+}
+
 // ── Caché de pacientes para búsqueda en modal ────────────────────────────────
 
 async function slotCargarLista() {
@@ -742,6 +829,8 @@ function schedSave(id, field, value) {
   let parsed
   if (field === "peso_entrada" || field === "peso_salida" || field === "ktv")
     parsed = value === "" ? null : parseFloat(value)
+  else if (field in RANGOS_SALIDA)
+    parsed = value === "" ? null : parseInt(value, 10)
   else
     parsed = value
 
@@ -759,6 +848,15 @@ function schedSave(id, field, value) {
     else if (field === "peso_salida")        payload.peso_salida        = r.peso_salida
     else if (field === "observaciones")      payload.observaciones      = r.observaciones
     else if (field === "ktv")               payload.ktv                = r.ktv
+    else if (field in RANGOS_SALIDA) {
+      // R3: validar rango antes de guardar (el servidor también valida)
+      const rg = RANGOS_SALIDA[field], v = r[field]
+      const el = document.querySelector(`tr[data-rid="${id}"] [data-campo="${field}"]`)
+      const fuera = v != null && (Number.isNaN(v) || v < rg.min || v > rg.max)
+      if (el) el.setAttribute("aria-invalid", fuera ? "true" : "false")
+      if (fuera) { toast(`${rg.etiqueta} fuera de rango (${rg.min}–${rg.max}); no se guardó`, "warn"); setSaveStatus(false); return }
+      payload[field] = v
+    }
     else if (field === "transitorio_nombre") payload.transitorio_nombre = r.transitorio_nombre
     await patchRegistro(id, payload)
   }, SAVE_DELAY)
@@ -830,7 +928,7 @@ async function renderCierre() {
   }
 
   app().innerHTML = `
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-5xl mx-auto">
       <div class="bg-white rounded-2xl shadow-xl p-6 print-section">
         <div class="flex items-start justify-between mb-5 print:mb-3">
           <div>
@@ -861,6 +959,8 @@ async function renderCierre() {
           </table>
         </div>
 
+        ${detalleCierreHTML()}
+
         <!-- 4 Firmas -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-10 print-section">
           ${[
@@ -882,6 +982,26 @@ async function renderCierre() {
       </div>
     </div>
   `
+}
+
+/** R3 + R1: detalle imprimible de asistentes (acceso, pesos, PA de pie, FC, Kt/V) */
+function detalleCierreHTML() {
+  const asist = G.registros.filter(r => r.asistencia === "A" && r.paciente)
+    .sort((a, b) => (a.paciente.estacion - b.paciente.estacion) || (a.paciente.cama - b.paciente.cama))
+  if (!asist.length) return ""
+  const n = (v, d = 1) => v == null ? "—" : Number(v).toFixed(d)
+  const pa = r => (r.pa_pie_sistolica != null && r.pa_pie_diastolica != null) ? `${r.pa_pie_sistolica}/${r.pa_pie_diastolica}` : "—"
+  return `<h3 class="font-bold text-blue-900 text-sm mb-2">Detalle de asistentes (${asist.length})</h3>
+    <div class="overflow-x-auto mb-6"><table class="tbl-cierre tbl-cierre-detalle w-full">
+      <thead><tr><th>Cama</th><th class="text-left">Paciente</th><th class="text-left">Acceso</th>
+        <th>P.Ent.</th><th>P.Sal.</th><th>Pérd.</th><th>PA pie</th><th>FC</th><th>Kt/V</th></tr></thead>
+      <tbody>${asist.map(r => `<tr>
+        <td>${displayCama(r.paciente.cama, r.paciente.estacion)}</td>
+        <td class="text-left">${escHtml(r.paciente.nombre)}</td>
+        <td class="text-left">${escHtml(accesoTexto(r.paciente))}</td>
+        <td>${n(r.peso_entrada)}</td><td>${n(r.peso_salida)}</td><td>${n(r.perdida_real, 2)}</td>
+        <td>${pa(r)}</td><td>${r.fc ?? "—"}</td><td>${n(r.ktv, 2)}</td></tr>`).join("")}
+      </tbody></table></div>`
 }
 
 async function cerrarSesion() {
