@@ -22,6 +22,9 @@ def borrar_paciente(cedula):
             db.query(models.AsignacionDia).filter(   # R2/R7: cambios de un día (suyos o como reemplazado)
                 (models.AsignacionDia.paciente_id == p.id)
                 | (models.AsignacionDia.reemplaza_paciente_id == p.id)).delete(synchronize_session=False)
+            db.query(models.AsistenciaMensual).filter_by(paciente_id=p.id).delete()   # R12 (delete masivo)
+            for tabla in (models.EpoFeCelda, models.EpoFeMovimiento, models.EpoFeMesPaciente):   # R14 (FK)
+                db.query(tabla).filter_by(paciente_id=p.id).delete()
             db.delete(p)
             db.commit()
 

@@ -28,13 +28,16 @@ def borrar_paciente_total(cedula):
 
 
 def borrar_mes(mes):
-    """Quita sesiones, cierres y auditoría de un mes de prueba."""
+    """Quita sesiones, cierres, auditoría y la programación EPO / hierro de un mes de prueba."""
     with SessionLocal() as db:
         for s in db.query(models.Sesion).filter(models.Sesion.fecha.startswith(mes)).all():
             db.delete(s)
         db.query(models.AsistenciaMensual).filter_by(mes=mes).delete()
         db.query(models.CierreMes).filter_by(mes=mes).delete()
         db.query(models.AuditoriaCierreMes).filter_by(mes=mes).delete()
+        for t in (models.EpoFeCelda, models.EpoFeMovimiento, models.EpoFeMesPaciente,   # R14
+                  models.EpoFeConfigMes, models.EpoFeAuditoria):
+            db.query(t).filter_by(mes=mes).delete()
         db.commit()
 
 
