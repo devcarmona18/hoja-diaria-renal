@@ -26,6 +26,9 @@ def _limpiar_mes():
             synchronize_session=False)
         db.query(models.Programacion).filter(models.Programacion.fecha.startswith(MES)).delete(
             synchronize_session=False)
+        for t in (models.EpoFeCelda, models.EpoFeMovimiento, models.EpoFeMesPaciente,   # R14
+                  models.EpoFeConfigMes, models.EpoFeAuditoria):
+            db.query(t).filter_by(mes=MES).delete(synchronize_session=False)
         db.commit()
 
 
@@ -61,10 +64,9 @@ def test_mes_cerrado_bloquea_hojas_programacion_e_insumos(admin):
             _es_409(admin.post(f"/api/cierre/{ses_cerrada['id']}/reabrir"))
             # no se crean hojas nuevas en el mes cerrado
             _es_409(admin.get("/api/sesiones/2025-07-14/N"))
-            # programación EPO/Fe del día y auto-programación del mes
+            # programación EPO/Fe del día (la del mes, R14, vive en /api/epo-fe)
             _es_409(admin.post("/api/programacion", json={"fecha": "2025-07-14", "turno": "N",
                                                           "items": [{"paciente_id": pid}]}))
-            _es_409(admin.post("/api/programacion/auto-mes", json={"anio": 2025, "mes": 7, "turno": "N"}))
             # cambios de un día
             _es_409(admin.post("/api/asignaciones", json={"fecha": "2025-07-16", "turno": "N",
                                                           "paciente_id": pid, "estacion": 3, "cama": 16}))

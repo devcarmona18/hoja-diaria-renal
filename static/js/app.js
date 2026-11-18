@@ -446,6 +446,21 @@ function celdasSalidaHTML(r, dis) {
       <td>${inp("fc", "lpm", "Frecuencia cardiaca")}</td>`
 }
 
+/** R14: EPO en jeringas de 4.000 UI (la llena la programación del mes; editable) */
+function epoCeldaHTML(r, dis) {
+  const n = r.epo_jeringas ?? (r.epo ? 1 : 0)
+  const ops = [0, 1, 2, 3].map(v => `<option value="${v}" ${v === n ? "selected" : ""}>${v ? (v * 4).toLocaleString("es-CO") + ".000" : "—"}</option>`).join("")
+  const tit = `EPO: ${n} jeringa(s) de 4.000 UI` + (r.epo_fe_manual ? " · cambiado a mano en la hoja" : "")
+  return `<select class="epo-sel${n ? " epo-on" : ""}${n > 1 ? " epo-doble" : ""}" ${dis} title="${tit}"
+      aria-label="EPO (UI)" onchange="setEpo(${r.id}, parseInt(this.value, 10), this)">${ops}</select>`
+}
+
+function setEpo(id, n, el) {
+  updateRegLocal(id, { epo_jeringas: n, epo: n > 0, epo_fe_manual: true })
+  if (el) { el.classList.toggle("epo-on", n > 0); el.classList.toggle("epo-doble", n > 1) }
+  patchRegistro(id, { epo_jeringas: n })
+}
+
 /** Botón al final de la fila: abre el resumen de sesiones del paciente */
 function btnResumenHTML(p) {
   if (!p) return ""
@@ -518,8 +533,7 @@ function buildRow(r, cerrada) {
       ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
-      <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
-          onchange="setCheck(${r.id},'epo',this.checked)" /></td>
+      <td class="text-center">${epoCeldaHTML(r, dis)}</td>
       <td class="text-center"><input type="checkbox" class="chk-hierro" ${r.hierro ? "checked" : ""} ${dis}
           onchange="setCheck(${r.id},'hierro',this.checked)" /></td>
       <td><input type="number" step="0.01" min="0" max="5" class="ktv-input"
@@ -584,8 +598,7 @@ function buildRowSuplente(r, cerrada) {
       ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
-      <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
-          onchange="setCheck(${r.id},'epo',this.checked)" /></td>
+      <td class="text-center">${epoCeldaHTML(r, dis)}</td>
       <td class="text-center"><input type="checkbox" class="chk-hierro" ${r.hierro ? "checked" : ""} ${dis}
           onchange="setCheck(${r.id},'hierro',this.checked)" /></td>
       <td><input type="number" step="0.01" min="0" max="5" class="ktv-input"
@@ -1063,159 +1076,8 @@ async function reabrirSesion() {
 // La pantalla «Programar próxima» vive en programacion.js (R2/R7).
 $("btn-programar").addEventListener("click", () => renderProgramacion())
 
-// ── VIEW: AUTO-PROGRAMACIÓN EPO/Fe MENSUAL ────────────────────────────────────
-async function renderAutoProgram() {
-  G.vista = "autoprogram"; updateHeader()
-  const hoyDate = new Date()
-  const anioHoy = hoyDate.getFullYear()
-  const mesHoy  = hoyDate.getMonth() + 1
-
-  let _previewData = null
-  let _anio = anioHoy
-  let _mes  = mesHoy
-  let _turno = "M"
-
-  const MESES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
-                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-
-  function _renderVista(preview = null, programado = false) {
-    const turnoTabs = ["M","T","N"].map(t =>
-      `<button onclick="_apTurno('${t}')"
-        class="px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors
-          ${_turno === t ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"}">
-        ${TURNOS[t]}</button>`
-    ).join("")
-
-    let prevHTML = ""
-    if (preview && preview.pacientes.length) {
-      const rows = preview.pacientes.map(p => `<tr>
-        <td class="font-medium text-sm text-left">${p.nombre}</td>
-        <td class="text-xs text-slate-400 text-center">${p.dias || "—"}</td>
-        <td class="text-center font-semibold">${p.sesiones}</td>
-        <td class="text-center text-blue-700 font-semibold">${p.epo_count > 0 ? p.epo_count : "—"}</td>
-        <td class="text-center text-amber-700 font-semibold">${p.hierro_count > 0 ? p.hierro_count : "—"}</td>
-      </tr>`).join("")
-
-      const totEpo    = preview.pacientes.reduce((a, p) => a + p.epo_count, 0)
-      const totHierro = preview.pacientes.reduce((a, p) => a + p.hierro_count, 0)
-      const totSes    = preview.pacientes.reduce((a, p) => a + p.sesiones, 0)
-
-      prevHTML = `
-        <div class="mt-5">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-slate-700 text-sm">
-              Vista previa — ${MESES_ES[_mes-1]} ${_anio} · Turno ${TURNOS[_turno]}
-            </h3>
-            <div class="flex gap-2 text-xs">
-              <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">EPO total: ${totEpo}</span>
-              <span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-semibold">Fe total: ${totHierro}</span>
-              <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Sesiones: ${totSes}</span>
-            </div>
-          </div>
-          <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="tbl-stats w-full">
-              <thead><tr>
-                <th class="text-left">Paciente</th>
-                <th class="text-center">Días</th>
-                <th class="text-center">Sesiones</th>
-                <th class="text-center text-blue-700">EPO aplic.</th>
-                <th class="text-center text-amber-700">Fe aplic.</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-          ${!programado ? `<div class="mt-4 flex gap-3">
-            <button onclick="_apEjecutar()"
-              class="bg-teal-700 hover:bg-teal-600 text-white px-5 py-2 rounded-lg font-semibold text-sm">
-              ✓ Confirmar y programar ${MESES_ES[_mes-1]}
-            </button>
-            <p class="text-xs text-slate-400 self-center">Esto reemplaza cualquier programación previa del mes para este turno.</p>
-          </div>` : `<div class="mt-4 bg-teal-50 border border-teal-200 rounded-lg px-4 py-2 text-teal-800 text-sm font-semibold">
-            ✓ Programación guardada — ${preview.programados} entradas creadas para ${MESES_ES[_mes-1]} ${_anio}
-          </div>`}
-        </div>`
-    } else if (preview && !preview.pacientes.length) {
-      prevHTML = `<p class="text-center text-slate-400 py-4 text-sm">
-        No hay pacientes con días (LMV/TJS) configurados para el turno ${TURNOS[_turno]}.
-        Configure los días en <strong>Gestión de Pacientes → Editar</strong>.
-      </p>`
-    }
-
-    app().innerHTML = `
-      <div class="max-w-4xl mx-auto">
-        <div class="bg-white rounded-2xl shadow-xl p-6">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h2 class="text-xl font-bold text-blue-900">Auto-programación EPO / Fe</h2>
-              <p class="text-slate-500 text-sm mt-0.5">
-                Distribuye las dosis del mes entre los días de cada paciente (LMV o TJS)
-              </p>
-            </div>
-            <button onclick="goHome()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg">← Inicio</button>
-          </div>
-
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800">
-            <strong>¿Cómo funciona?</strong> Para cada paciente con EPO/Fe configurado en su ficha:<br/>
-            · EPO: distribuye <em>epo_mensual ÷ epo_dosis</em> aplicaciones de forma equidistante en sus sesiones del mes.<br/>
-            · Fe i.v.: distribuye las aplicaciones indicadas de forma equidistante.
-          </div>
-
-          <div class="flex flex-wrap gap-4 mb-4 items-end">
-            <div>
-              <label class="block text-sm font-semibold text-slate-600 mb-1">Mes</label>
-              <select id="ap-mes" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                onchange="_anio=parseInt(this.value.split('-')[0]); _mes=parseInt(this.value.split('-')[1])">
-                ${Array.from({length: 6}, (_, i) => {
-                  const d = new Date(anioHoy, mesHoy - 1 + i)
-                  const y = d.getFullYear(), m = d.getMonth() + 1
-                  const sel = (y === _anio && m === _mes) ? "selected" : ""
-                  return `<option value="${y}-${m}" ${sel}>${MESES_ES[m-1]} ${y}</option>`
-                }).join("")}
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-600 mb-1">Turno</label>
-              <div class="flex gap-2" id="ap-turno-btns">${turnoTabs}</div>
-            </div>
-            <button onclick="_apPreview()"
-              class="ml-auto bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold self-end">
-              Ver vista previa
-            </button>
-          </div>
-
-          <div id="ap-preview">${prevHTML}</div>
-        </div>
-      </div>
-    `
-  }
-
-  window._apTurno = function(t) {
-    _turno = t
-    _renderVista()
-  }
-
-  window._apPreview = async function() {
-    const selMes = $("ap-mes")
-    if (selMes) { const [y,m] = selMes.value.split("-"); _anio = parseInt(y); _mes = parseInt(m) }
-    try {
-      _previewData = await apiGet(`/api/programacion/resumen-mes?anio=${_anio}&mes=${_mes}&turno=${_turno}`)
-      _renderVista(_previewData)
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  window._apEjecutar = async function() {
-    const selMes = $("ap-mes")
-    if (selMes) { const [y,m] = selMes.value.split("-"); _anio = parseInt(y); _mes = parseInt(m) }
-    if (!confirm(`¿Programar EPO/Fe de ${MESES_ES[_mes-1]} ${_anio} para turno ${TURNOS[_turno]}?\nEsto reemplazará la programación previa del mes.`)) return
-    try {
-      const res = await apiPost("/api/programacion/auto-mes", { anio: _anio, mes: _mes, turno: _turno })
-      toast(`✓ ${res.programados} entradas creadas para ${res.pacientes.length} pacientes`)
-      _renderVista(res, true)
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  _renderVista()
-}
+// ── VIEW: EPO / Fe DEL MES ────────────────────────────────────────────────────
+// R14: la vista mensual (renderAutoProgram) vive en epo_fe.js.
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function cerrarSesionUsuario() {

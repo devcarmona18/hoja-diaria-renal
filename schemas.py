@@ -106,6 +106,7 @@ class RegistroUpdate(BaseModel):
     peso_entrada: Optional[float] = None
     peso_salida: Optional[float] = None
     epo: Optional[bool] = None
+    epo_jeringas: Optional[int] = Field(None, ge=0, le=6)   # R14: jeringas de 4.000 UI
     hierro: Optional[bool] = None
     observaciones: Optional[str] = None
     ktv: Optional[float] = None
@@ -132,6 +133,7 @@ class RegistroOut(BaseModel):
     ganancia_id: Optional[float] = None
     balance_seco: Optional[float] = None
     epo: bool = False
+    epo_jeringas: Optional[int] = None
     hierro: bool = False
     observaciones: str = ""
     ktv: Optional[float] = None
@@ -158,6 +160,7 @@ class CierreEstacion(BaseModel):
     sin_marcar: int
     epo_count: int
     hierro_count: int
+    epo_jeringas: int = 0          # R14: jeringas de 4.000 UI aplicadas
 
 
 class CierreOut(BaseModel):
@@ -205,28 +208,6 @@ class LaboratorioCreate(BaseModel):
 class LaboratorioOut(LaboratorioCreate):
     id: int
     model_config = {"from_attributes": True}
-
-
-# ── Auto-programación mensual EPO/Fe ─────────────────────────────────────────
-
-class AutoMesInput(BaseModel):
-    anio: int
-    mes: int
-    turno: str
-
-
-class AutoMesPacienteResult(BaseModel):
-    nombre: str
-    cedula: str
-    dias: Optional[str]
-    sesiones: int
-    epo_count: int
-    hierro_count: int
-
-
-class AutoMesResult(BaseModel):
-    programados: int
-    pacientes: list[AutoMesPacienteResult]
 
 
 # ── IA Fase 4 ────────────────────────────────────────────────────────────────

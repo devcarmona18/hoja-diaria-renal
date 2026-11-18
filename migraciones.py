@@ -22,13 +22,16 @@ Cambios de esta entrega:
       se ven igual que antes.
   R5/R6 pacientes.adicional / citrato / heparina_sodica, registros.adicional y
       tablas insumos_config, pedido_insumos, pedido_insumos_items (pedido de insumos).
-
   R11 registros.snapshot (foto JSON del paciente al cerrar la sesión)
   R12 tablas cierres_mes / asistencia_mensual / auditoria_cierre_mes / paciente_inactividad
       (los pacientes que YA están inactivos abren su periodo de inactividad hoy)
   R13 pacientes.archivado_en / archivado_motivo; tablas medicos (se llena con los
       nombres de ``pacientes.medico``), lab_rangos, teams_envios, auditoria_pacientes
       (bitácora de archivar / restaurar / reactivar)
+  R14 registros.epo_jeringas / epo_fe_manual y tablas epo_fe_mes, epo_fe_celdas,
+      epo_fe_movimientos, epo_fe_config_mes, epo_fe_auditoria (auto-programación
+      mensual de EPO / hierro). Los registros antiguos quedan con epo_jeringas NULL
+      (= una aplicación, como antes).
 
 Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
 llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
@@ -73,7 +76,12 @@ CONVERSION_ACCESO = {
 
 
 def aplicar(engine) -> list[str]:
-    """Aplica las migraciones pendientes. Devuelve la lista de acciones realizadas."""
+    """Aplica las migraciones pendientes. Devuelve la lista de acciones realizadas.
+
+    Orden: R1–R7 y R5/R6 (columnas y tablas de insumos) aquí mismo, luego
+    ``_aplicar_r11_r13`` y por último ``_aplicar_r14`` (EPO / hierro). Todo es
+    idempotente: una segunda ejecución devuelve una lista vacía.
+    """
     insp = inspect(engine)
     tablas = set(insp.get_table_names())
     hechas: list[str] = []
@@ -126,6 +134,7 @@ def aplicar(engine) -> list[str]:
                 if r.rowcount:
                     hechas.append(f"acceso CY -> yugular ({r.rowcount})")
     hechas += _aplicar_r11_r13(engine)
+    hechas += _aplicar_r14(engine)
     return hechas
 
 
@@ -184,4 +193,30 @@ def _aplicar_r11_r13(engine) -> list[str]:
                                  "VALUES (:p, :d, 'inactivo')"), {"p": pid, "d": date.today().isoformat()})
             if filas:
                 hechas.append(f"paciente_inactividad +{len(filas)}")
+    return hechas
+
+
+# ── R14: auto-programación EPO / hierro ──────────────────────────────────────
+COLUMNAS_R14 = [
+    ("registros", "epo_jeringas", "INTEGER"),
+    ("registros", "epo_fe_manual", "BOOLEAN"),
+]
+
+
+def _aplicar_r14(engine) -> list[str]:
+    import models
+    hechas: list[str] = []
+    tablas = set(inspect(engine).get_table_names())
+    if "pacientes" not in tablas:
+        return hechas
+    for modelo in (models.EpoFeMesPaciente, models.EpoFeCelda, models.EpoFeMovimiento,
+                   models.EpoFeConfigMes, models.EpoFeAuditoria):
+        if modelo.__tablename__ not in tablas:
+            modelo.__table__.create(bind=engine, checkfirst=True)
+            hechas.append(f"+tabla {modelo.__tablename__}")
+    with engine.begin() as con:
+        for tabla, col, tipo in COLUMNAS_R14:
+            if tabla in tablas and col not in {c["name"] for c in inspect(con).get_columns(tabla)}:
+                con.execute(text(f'ALTER TABLE {tabla} ADD COLUMN {col} {tipo}'))
+                hechas.append(f"+{tabla}.{col}")
     return hechas

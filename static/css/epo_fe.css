@@ -1,0 +1,74 @@
+/* R14 · EPO / Hierro del mes (Tailwind compilado no se regenera: estilos propios) */
+.ef-wrap { max-width: 100%; }
+.ef-cab { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: space-between; align-items: flex-end;
+  background: #fff; border-radius: 1rem; padding: 1rem 1.25rem; box-shadow: 0 4px 14px rgba(15, 23, 42, .08); margin-bottom: .75rem; }
+.ef-acciones { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.ef-btn { display: inline-block; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: .5rem;
+  padding: .3rem .7rem; font-size: .8rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+.ef-btn:hover { background: #e2e8f0; }
+.ef-btn-main { background: #0f766e; border-color: #0f766e; color: #fff; }
+.ef-btn-main:hover { background: #0d9488; }
+.ef-btn-warn { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
+.ef-btn-del { background: #fef2f2; border-color: #f87171; color: #b91c1c; }
+.ef-info, .ef-leyenda { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .78rem; color: #334155; margin: .35rem 0; }
+.ef-leyenda { color: #64748b; align-items: center; }
+.ef-muestra { display: inline-block; width: 14px; height: 12px; border: 1px solid #cbd5e1; vertical-align: middle; }
+.ef-titulo-print { display: none; }
+.ef-vacio { background: #fff; border: 1px dashed #94a3b8; border-radius: .75rem; padding: 2rem; text-align: center; color: #475569; font-size: .9rem; }
+
+.ef-tabla-wrap { overflow: auto; max-height: 75vh; background: #fff; border: 1px solid #cbd5e1; border-radius: .5rem; }
+.ef-tabla { border-collapse: separate; border-spacing: 0; font-size: 10px; width: max-content; min-width: 100%; }
+.ef-tabla th, .ef-tabla td { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 2px 3px; }
+.ef-tabla thead th { position: sticky; top: 0; background: #1e3a8a; color: #fff; z-index: 2; font-weight: 600; text-align: center; line-height: 1.15; }
+.ef-tabla .ef-pac { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; min-width: 170px; max-width: 210px; }
+.ef-tabla thead .ef-pac { z-index: 3; background: #1e3a8a; }
+.ef-nombre { display: block; font-weight: 600; font-size: 11px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ef-sub { display: block; color: #64748b; font-size: 9px; }
+.ef-aviso { display: block; color: #b45309; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ef-tot { text-align: center; width: 38px; }
+.ef-nef { text-align: center; width: 30px; font-weight: 600; color: #334155; }
+.ef-inp { width: 34px; font-size: 11px; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 0; }
+.ef-inp:disabled { background: transparent; border-color: transparent; color: #0f172a; }
+.ef-dia { min-width: 34px; }
+.ef-tabla thead .ef-lab { background: #7c2d12; }
+.ef-c { text-align: center; vertical-align: middle; height: 30px; min-width: 34px; }
+.ef-c[role="button"] { cursor: pointer; }
+.ef-c[role="button"]:hover { outline: 2px solid #0f766e; outline-offset: -2px; }
+.ef-no { background: #f8fafc; }
+.ef-lab { background-image: repeating-linear-gradient(45deg, #fff7ed 0 4px, #ffedd5 4px 8px); }
+.ef-manual { box-shadow: inset 0 0 0 2px #7c3aed; }
+.ef-llega { box-shadow: inset 0 -3px 0 #f59e0b; }
+.ef-manual.ef-llega { box-shadow: inset 0 0 0 2px #7c3aed, inset 0 -3px 0 #f59e0b; }
+.ef-falto { background: #fee2e2; }
+.ef-inact { background: #e2e8f0; }
+.ef-epo { display: block; background: #dbeafe; color: #1d4ed8; border-radius: 3px; font-weight: 700; padding: 0 2px; }
+.ef-epo2 { background: #1d4ed8; color: #fff; }
+.ef-fe { display: block; background: #fef3c7; color: #92400e; border-radius: 3px; font-weight: 700; margin-top: 1px; padding: 0 2px; }
+.ef-na { color: #b91c1c; font-weight: 700; }
+.ef-grupo th { background: #e0e7ff; color: #1e3a8a; text-align: left; font-size: 11px; position: sticky; left: 0; }
+.ef-tabla tfoot th, .ef-tabla tfoot td { background: #f1f5f9; font-weight: 700; position: sticky; bottom: 0; }
+.ef-fila-inactiva .ef-nombre { color: #94a3b8; text-decoration: line-through; }
+.ef-audit { margin-top: .75rem; font-size: .78rem; background: #fff; border-radius: .5rem; padding: .5rem .75rem; border: 1px solid #e2e8f0; }
+.ef-audit ul { max-height: 220px; overflow: auto; margin-top: .4rem; }
+.ef-lab-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .25rem .75rem; }
+
+/* Hoja diaria: EPO en jeringas (4.000 / 8.000 UI) */
+.epo-sel { font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 0 1px; max-width: 64px; background: #fff; }
+.epo-sel.epo-on { background: #dbeafe; color: #1d4ed8; font-weight: 700; border-color: #93c5fd; }
+.epo-sel.epo-doble { background: #1d4ed8; color: #fff; }
+
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  .ef-cab, .ef-leyenda, .ef-audit { display: none !important; }
+  .ef-titulo-print { display: block; font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+  .ef-tabla-wrap { max-height: none; overflow: visible; border: none; }
+  .ef-tabla { font-size: 8px; width: 100%; min-width: 0; }
+  .ef-tabla thead th, .ef-tabla .ef-pac, .ef-tabla tfoot td, .ef-tabla tfoot th, .ef-grupo th { position: static; }
+  .ef-tabla thead th { background: #e2e8f0 !important; color: #000 !important; }
+  .ef-pac { min-width: 120px !important; }
+  .ef-c, .ef-dia { min-width: 0; height: 20px; }
+  .ef-inp { border: none; width: 28px; font-size: 9px; padding: 0; }
+  .ef-aviso { display: none; }
+  .ef-epo, .ef-fe, .ef-lab, .ef-falto, .ef-epo2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ef-tabla tr { break-inside: avoid; }
+}

@@ -171,7 +171,7 @@ async function renderHojaDia(fecha, turno = "") {
       <td class="whitespace-nowrap">${pa}</td>
       <td>${f.fc ?? "—"}</td>
       <td>${f.ktv != null ? f.ktv.toFixed(2) : "—"}</td>
-      <td>${f.epo ? "Sí" : "—"}</td>
+      <td>${f.epo ? (f.epo_jeringas ? (f.epo_jeringas * 4000).toLocaleString("es-CO") + " UI" : "Sí") : "—"}</td>
       <td>${f.hierro ? "Sí" : "—"}</td>
       <td class="whitespace-nowrap">${hep}</td>
       <td class="obs">${escHtml(f.observaciones) || "—"}</td>

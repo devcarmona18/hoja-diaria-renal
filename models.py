@@ -90,6 +90,12 @@ class Registro(Base):
     snapshot                = Column(Text)
     # R6: adicional solo de esta sesión (quien asiste en la fila: paciente o suplente)
     adicional = Column(Boolean)
+    # R14: jeringas de EPO de 4.000 UI de esta sesión (NULL en registros antiguos:
+    # ``epo`` booleano = 1 aplicación). ``epo`` se mantiene = epo_jeringas > 0.
+    epo_jeringas            = Column(Integer)
+    # R14: el personal cambió a mano la EPO/Fe de esta fila: la programación
+    # mensual ya no la sobrescribe.
+    epo_fe_manual           = Column(Boolean)
 
     sesion               = relationship("Sesion", back_populates="registros")
     paciente             = relationship("Paciente", foreign_keys=[paciente_id])
@@ -334,3 +340,86 @@ class PedidoInsumosItem(Base):
     alertas         = Column(String(300))                  # avisos del paciente separados por « · »
 
     pedido = relationship("PedidoInsumos", back_populates="items")
+
+
+# ── R14: auto-programación mensual de EPO / hierro ───────────────────────────
+
+class EpoFeMesPaciente(Base):
+    """Totales del mes de un paciente: jeringas de EPO (4.000 UI) y dosis de hierro."""
+    __tablename__ = "epo_fe_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)              # YYYY-MM
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    epo_jeringas = Column(Integer, nullable=False, default=0)
+    fe_dosis = Column(Integer, nullable=False, default=0)
+    actualizado_por = Column(String(80))
+    actualizado_en = Column(DateTime)
+
+    paciente = relationship("Paciente")
+
+    __table_args__ = (UniqueConstraint("mes", "paciente_id", name="uq_epo_fe_mes_paciente"),)
+
+
+class EpoFeCelda(Base):
+    """Plan de UNA sesión del paciente: jeringas de EPO y dosis de hierro (0/1).
+
+    ``manual`` = ajuste del administrador en la grilla: el recálculo no lo toca
+    (solo «Regenerar mes»). Lo efectivamente programado = plan + reprogramaciones
+    que llegan − lo que sale por inasistencia (ver EpoFeMovimiento).
+    """
+    __tablename__ = "epo_fe_celdas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    fecha = Column(String(10), nullable=False)                        # YYYY-MM-DD
+    epo = Column(Integer, nullable=False, default=0)                  # jeringas
+    fe = Column(Integer, nullable=False, default=0)                   # dosis (0/1)
+    manual = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (UniqueConstraint("paciente_id", "fecha", name="uq_epo_fe_celda"),)
+
+
+class EpoFeMovimiento(Base):
+    """Reprogramación por inasistencia: la dosis de ``fecha_origen`` pasa a ``fecha_destino``.
+
+    ``fecha_destino`` NULL = no quedó ninguna sesión del mes donde ponerla (pendiente).
+    ``activo`` falso = se revirtió (p. ej. se corrigió la asistencia y sí vino).
+    """
+    __tablename__ = "epo_fe_movimientos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    tipo = Column(String(4), nullable=False)                          # epo | fe
+    fecha_origen = Column(String(10), nullable=False)
+    fecha_destino = Column(String(10))
+    cantidad = Column(Integer, nullable=False)
+    activo = Column(Boolean, nullable=False, default=True)
+    creado_por = Column(String(80))
+    creado_en = Column(DateTime)
+    actualizado_en = Column(DateTime)
+
+
+class EpoFeConfigMes(Base):
+    """Días de laboratorio de un mes cuando no son los de la regla por defecto."""
+    __tablename__ = "epo_fe_config_mes"
+
+    mes = Column(String(7), primary_key=True)
+    dias_lab = Column(String(200), nullable=False, default="")       # fechas YYYY-MM-DD separadas por coma
+    actualizado_por = Column(String(80))
+    actualizado_en = Column(DateTime)
+
+
+class EpoFeAuditoria(Base):
+    """Bitácora de la programación: generar, ajustes, reprogramaciones, borrado."""
+    __tablename__ = "epo_fe_auditoria"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer)                                     # sin FK: sobrevive al borrado del mes
+    accion = Column(String(20), nullable=False)
+    detalle = Column(String(400))
+    usuario = Column(String(80))
+    creado_en = Column(DateTime, nullable=False)

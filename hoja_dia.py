@@ -232,6 +232,13 @@ def crear_registros(db: Session, sesion: models.Sesion) -> None:
                                transitorio_paciente_id=sup.paciente_id,
                                transitorio_nombre=sup.paciente.nombre,
                                epo=epo, hierro=fe, estacion=e, cama=c))
+    _epo_fe_mes(db, sesion)
+
+
+def _epo_fe_mes(db: Session, sesion: models.Sesion) -> None:
+    """R14: la programación mensual de EPO/Fe manda sobre las casillas de la programación del día."""
+    from services import epo_fe   # import tardío: epo_fe usa servicios que importan este módulo
+    epo_fe.aplicar_a_sesion(db, sesion)
 
 
 def _tiene_datos(r: models.Registro) -> bool:
@@ -299,6 +306,7 @@ def sincronizar_sesion(db: Session, fecha: str, turno: str, paciente_ids: set[in
             r.estacion, r.cama = pu.estacion, pu.cama
         elif r is not None:
             _quitar_registro(db, r)
+    _epo_fe_mes(db, s)
 
 
 def ubicacion_registro(r: models.Registro) -> tuple[int | None, int | None]:
