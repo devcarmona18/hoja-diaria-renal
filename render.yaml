@@ -23,3 +23,7 @@ services:
         value: "true"
       - key: ANTHROPIC_API_KEY  # opcional; vacío = módulo IA oculto
         sync: false
+      - key: HL7_ENABLED        # integración HL7 AK 98 «Próximamente»: apagada
+        value: "false"
+      - key: HL7_BRIDGE_SECRET  # solo se usa si HL7_ENABLED=true
+        sync: false

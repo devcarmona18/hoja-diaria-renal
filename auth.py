@@ -21,7 +21,8 @@ import config
 router = APIRouter()
 
 METODOS_LECTURA = {"GET", "HEAD", "OPTIONS"}
-RUTAS_PUBLICAS = ("/health", "/login", "/static/", "/api/auth/", "/favicon.ico")
+RUTAS_PUBLICAS = ("/health", "/login", "/static/", "/api/auth/", "/favicon.ico",
+                  "/api/hl7/mensajes")  # HL7: el puente se autentica con firma HMAC, no con cookie
 
 # Freno simple contra fuerza bruta: máx. 10 intentos fallidos por IP cada 15 min.
 _MAX_FALLOS, _VENTANA = 10, 15 * 60
