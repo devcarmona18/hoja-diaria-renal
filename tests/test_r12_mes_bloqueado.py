@@ -56,6 +56,7 @@ def test_mes_cerrado_bloquea_hojas_programacion_e_insumos(admin):
             _es_409(admin.patch(f"/api/sesiones/registros/{reg['id']}", json={"asistencia": "NA"}))
             _es_409(admin.post(f"/api/sesiones/{h['id']}/paciente/{pid}"))
             # ni cerrar ni reabrir un día
+            assert admin.get(f"/api/cierre/{h['id']}").json()["sesion"]["mes_cerrado"] is True
             _es_409(admin.post(f"/api/cierre/{h['id']}/cerrar"))
             _es_409(admin.post(f"/api/cierre/{ses_cerrada['id']}/reabrir"))
             # no se crean hojas nuevas en el mes cerrado

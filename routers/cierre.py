@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import get_db
 from services import hoja as srv_hoja
-from services.bloqueo_mes import exigir_abierto
+from services.bloqueo_mes import exigir_abierto, mes_cerrado
 
 router = APIRouter()
 
@@ -36,6 +36,7 @@ def get_cierre(sesion_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
+    sesion.mes_cerrado = mes_cerrado(db, sesion.fecha)   # R12: la UI oculta cerrar/reabrir
     estaciones = [_calcular_cierre(registros, e) for e in (1, 2, 3)]
     totales = _calcular_cierre(registros, 0)
     totales.estacion = 0

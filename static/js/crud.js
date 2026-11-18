@@ -473,6 +473,11 @@ function crudNuevo() {
 async function _guardarNuevo() {
   const data = _leerFormulario(); if (!data) return
   try {
+    // R13: si la cédula es de un archivado (aunque ya no esté en la lista) se ofrece reactivarlo
+    const norm = c => (c || "").replace(/\s+/g, "").toUpperCase()
+    const arch = (await apiGet(`/api/pacientes/archivados/buscar?cedula=${encodeURIComponent(data.cedula || "")}`)).pacientes
+      .find(p => norm(p.cedula) === norm(data.cedula))
+    if (arch) { archivoOfrecerReactivar(arch); return }
     await apiPost("/api/pacientes", data)
     closeModal(); toast("Paciente creado correctamente")
     renderCRUD(_crudTurno)
