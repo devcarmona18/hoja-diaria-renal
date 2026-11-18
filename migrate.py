@@ -64,6 +64,8 @@ except Exception as e:  # p. ej. la BD aún no tiene la tabla «pacientes»
 # v9 — R11–R13: foto de la hoja al cerrar (registros.snapshot), asistencia mensual y
 #      cierre de mes, periodos de inactividad, archivo de pacientes, médicos/Teams y
 #      rangos de laboratorio.
+#      R5/R6: pedido de insumos (pacientes.adicional/citrato/heparina_sodica,
+#      registros.adicional, tablas insumos_config / pedido_insumos / _items).
 # v10 — R14: auto-programación mensual de EPO / hierro (tablas epo_fe_* y
 #      registros.epo_jeringas / epo_fe_manual).
 # Todas viven en migraciones.aplicar(): una sola ruta idempotente, en SQLite y
@@ -75,7 +77,7 @@ try:
     for _accion in _migraciones.aplicar(_engine2):
         print(f"OK  : {_accion}")
     print("Migraciones v7 (acceso vascular, PA/FC, UI, estado del paciente), "
-          "v8 (programación por día) y v9 (historial, cierre de mes, archivo, "
-          "médicos/Teams) verificadas.")
+          "v8 (programación por día, insumos), v9 (historial, cierre de mes, archivo, "
+          "médicos/Teams) y v10 (EPO / hierro del mes) verificadas.")
 except Exception as e:
-    print(f"Migraciones v7/v8/v9 no aplicadas: {e}")
+    print(f"Migraciones v7–v10 no aplicadas: {e}")
