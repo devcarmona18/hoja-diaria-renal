@@ -28,18 +28,19 @@ Por **cada sesión** del paciente:
 | FAV | Kit de fístula | 1 |
 | FAV | Aguja de fístula del calibre del paciente (15/16/17) | 2 |
 | FAV | Línea arteriovenosa | 1 |
-| FAV | SSN 0,9 % 1000 mL | 1 |
+| FAV | SSN 0,9 % 1000 mL | 1 bolsa |
 | FAV | Filtro del paciente | 1 |
-| FAV | Guantes estériles | **no lleva** |
+| FAV | Guantes estériles | **no lleva** (ningún día) |
 | CY (yugular o femoral) | Kit de catéter | 1 |
 | CY | Línea arteriovenosa | 1 |
-| CY | SSN 0,9 % 1000 mL | 1 |
+| CY | SSN 0,9 % 1000 mL | 1 bolsa |
 | CY | Filtro del paciente | 1 |
-| CY | Guantes estériles 6.5 | 2 con citrato o heparina sódica; si no, 1 lunes y martes; otro día 0 |
+| CY | Guantes estériles 6.5 (se piden **por par**) | Con citrato o heparina sódica: **2 pares, cualquier día**. Sin ellos (usan Tegos): **1 par lunes y martes**, 0 los demás días |
 | CY | Apósito IV3000 | 1 lunes y martes |
 | CY | Tego | 2 sin citrato ni heparina sódica |
 | CY | Tapas luer-lock | 1 empaque (2 tapas) con citrato o heparina sódica |
 
+- **Unidades** (confirmadas por el responsable): guantes estériles 6.5 por **par**; SSN 0,9 % 1000 mL por **bolsa**; tapas luer-lock por empaque (2 tapas).
 - El **día** es el de la sesión (para el pedido, el día siguiente; para adicionales y devoluciones, hoy).
 - **Citrato / heparina sódica**: casillas del paciente (Pacientes → editar, solo con catéter). En adicionales y devoluciones también cuentan las casillas C / HS marcadas en la fila de la hoja de ese día.
 - **Calibre o filtro faltante**: no se adivina; se omite esa línea y el paciente aparece con el aviso y en «Revisar».

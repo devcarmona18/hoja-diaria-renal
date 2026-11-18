@@ -166,3 +166,22 @@ def test_sumar_totales():
     assert tot["kit_fistula"] == 2 and tot["kit_cateter"] == 1
     # sumar no altera las líneas originales
     assert next(x for x in a if x.codigo == "linea").cantidad == 1
+
+
+# ── Unidades y regla de guantes (confirmadas por el responsable) ──────────────
+
+def test_guantes_se_piden_por_par_y_ssn_por_bolsa():
+    assert R.insumos["guantes_esteriles_6_5"].unidad == "par"
+    assert R.insumos["ssn_1000"].unidad == "bolsa"
+    li = next(x for x in ir.calcular(cy(citrato=True), LUNES, R).lineas if x.codigo == "guantes_esteriles_6_5")
+    assert (li.cantidad, li.unidad) == (2, "par")
+
+
+@pytest.mark.parametrize("dia", list(DIAS))
+def test_regla_guantes_exacta(dia):
+    """CY con citrato o heparina sódica -> 2 pares cualquier día; CY sin ellos (Tegos) ->
+    1 par lunes/martes y 0 los demás días; FAV -> nunca guantes."""
+    pares = lambda d: cant(ir.calcular(d, DIAS[dia], R)).get("guantes_esteriles_6_5", 0)
+    assert pares(cy(citrato=True)) == 2 and pares(cy(heparina=True)) == 2
+    assert pares(cy()) == (1 if dia in ("lunes", "martes") else 0)
+    assert pares(ir.DatosPaciente(acceso="FAV", calibre=16, filtro="B-18")) == 0

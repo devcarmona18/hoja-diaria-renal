@@ -8,7 +8,7 @@
     "ssn_1000":              {"nombre": "SSN 0,9 % 1000 mL",           "unidad": "bolsa"},
     "filtro_{filtro}":       {"nombre": "Filtro {filtro}",             "unidad": "unidad"},
     "kit_cateter":           {"nombre": "Kit de catéter",              "unidad": "kit"},
-    "guantes_esteriles_6_5": {"nombre": "Guantes estériles 6.5",       "unidad": "unidad"},
+    "guantes_esteriles_6_5": {"nombre": "Guantes estériles 6.5",       "unidad": "par"},
     "aposito_iv3000":        {"nombre": "Apósito IV3000",              "unidad": "unidad"},
     "tego":                  {"nombre": "Tego",                        "unidad": "unidad"},
     "tapas_luer_lock":       {"nombre": "Tapas luer-lock",             "unidad": "empaque", "detalle": "1 empaque (2 tapas)"}
