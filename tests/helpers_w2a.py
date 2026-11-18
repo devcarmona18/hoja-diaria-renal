@@ -20,6 +20,8 @@ def borrar_paciente_total(cedula):
             (models.AsignacionDia.paciente_id == pid)
             | (models.AsignacionDia.reemplaza_paciente_id == pid)).delete(synchronize_session=False)
         db.query(models.AsistenciaMensual).filter_by(paciente_id=pid).delete()   # delete masivo: sin evento ORM
+        for tabla in (models.EpoFeCelda, models.EpoFeMovimiento, models.EpoFeMesPaciente):   # R14
+            db.query(tabla).filter_by(paciente_id=pid).delete()
         db.delete(p)
         db.commit()
 

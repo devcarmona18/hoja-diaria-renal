@@ -625,7 +625,7 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
         "dias_lab": sorted(lab), "dias_lab_por_defecto": mesobj.lab_defecto,
         "filas": filas, "totales_dia": totales_dia,
         "sin_programacion": len([p for p in activos_sin if dias_semana(p)]),
-        "sin_dias": [p.nombre for p in activos_sin if not dias_semana(p)],
+        "sin_dias": len([p for p in activos_sin if not dias_semana(p)]),
         "puede_borrar": (mesobj.anio, mesobj.m) < (hoy.year, hoy.month),
         "jeringa_ui": JERINGA_UI,
         "auditoria": [{"accion": a.accion, "detalle": a.detalle, "usuario": a.usuario,
