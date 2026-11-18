@@ -172,6 +172,8 @@ const MENU_INICIO = [
     hover: "hover:bg-teal-50",    borde: "border-teal-200",    texto: "text-teal-800" },
   { id: "ia",            accion: "renderIA(null, null)",  icono: "🤖", titulo: "IA Clínica (F4)",   sub: "Consulta sobre historial del paciente",
     hover: "hover:bg-indigo-50",  borde: "border-indigo-200",  texto: "text-indigo-800", extra: "solo-ia solo-admin" },
+  { id: "insumos",       accion: "renderInsumos()",       icono: "📦", titulo: "Pedido de insumos", sub: "Para el próximo día · adicionales · devoluciones",
+    hover: "menu-insumos",        borde: "border-orange-200",  texto: "text-orange-700" },
   { id: "proximamente",  accion: "renderProximamente()",  icono: "🚀", titulo: "Próximamente",      sub: "Integración con las máquinas AK 98",
     hover: "hover:bg-slate-50",   borde: "border-slate-200",   texto: "text-slate-800" },
 ]
@@ -440,6 +442,14 @@ function btnResumenHTML(p) {
       title="Resumen de sesiones recientes de ${escHtml(p.nombre)}" aria-label="Resumen de sesiones de ${escHtml(p.nombre)}">📋</button>`
 }
 
+/** R6: «Adicional solo hoy» (pedido de insumos). Paciente adicional permanente = etiqueta fija. */
+function adicionalHojaHTML(r, cerrada) {
+  if (r.paciente?.adicional) return `<span class="adic-chip" title="Paciente adicional: sus insumos se piden el día que llega">Adic.</span>`
+  if (cerrada) return r.adicional ? `<span class="adic-chip" title="Adicional de este día">Adic.</span>` : ""
+  return `<label class="adic-toggle" title="Adicional solo hoy: sus insumos van al pedido de hoy">
+    <input type="checkbox" ${r.adicional ? "checked" : ""} onchange="setCheck(${r.id},'adicional',this.checked)" />Adic.</label>`
+}
+
 function buildRow(r, cerrada) {
   const p = r.paciente; if (!p) return ""
   const rowCls = r.asistencia === "F" ? "row-F"
@@ -478,6 +488,7 @@ function buildRow(r, cerrada) {
             ${subtxt}
           </div>
           ${!cerrada ? `<button class="btn-reemplazar" onclick="abrirModalReemplazar(${r.id})" title="Reemplazar este paciente hoy">↕</button>` : ""}
+          ${adicionalHojaHTML(r, cerrada)}
         </div>
       </td>
       <td class="text-slate-500 text-xs">${fmtPeso(p.peso_seco)}</td>
