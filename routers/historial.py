@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import models
 from database import get_db
+from services import hoja as srv_hoja
+from services.asistencia import ReglaError
 
 router = APIRouter()
 
@@ -48,6 +50,16 @@ def listar_historial(
     return result
 
 
+@router.get("/hoja")
+def hoja_del_dia(fecha: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                 turno: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """R11: hoja COMPLETA de un día (y turno) tal como quedó + resumen del día (asistidos, EPO, Fe)."""
+    try:
+        return srv_hoja.hoja_completa(db, fecha, turno)
+    except ReglaError as e:
+        raise HTTPException(e.status, str(e))
+
+
 @router.get("/meses")
 def listar_meses(db: Session = Depends(get_db)):
     """Retorna lista de 'YYYY-MM' con sesiones registradas, desc."""
@@ -60,6 +72,8 @@ def listar_meses(db: Session = Depends(get_db)):
 def limpiar_mes(anio: int, mes: int, db: Session = Depends(get_db)):
     """Elimina todas las sesiones (y registros) de un mes. Pacientes conservados."""
     prefix = f"{anio:04d}-{mes:02d}"
+    if db.query(models.CierreMes).filter_by(mes=prefix, reabierto_en=None).first():
+        raise HTTPException(409, "El mes está cerrado para facturación: reábralo (admin) antes de limpiarlo")
     sesiones = db.query(models.Sesion).filter(models.Sesion.fecha.startswith(prefix)).all()
     if not sesiones:
         raise HTTPException(404, "No hay sesiones para ese mes")
