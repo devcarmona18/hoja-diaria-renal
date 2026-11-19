@@ -39,9 +39,24 @@ SECRET_KEY = os.getenv("SECRET_KEY") or "dev-insecure-secret-change-me"
 # En producción (HTTPS) la cookie solo viaja por conexiones seguras.
 COOKIE_SECURE = _bool("COOKIE_SECURE")
 
-# Módulo IA: solo se activa si existe la clave.
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-IA_ENABLED = bool(ANTHROPIC_API_KEY)
+# ── R9: apartado «IA» = NefroIA integrado con inicio de sesión único ────────
+# Ver docs/integracion-nefroia.md. Sin NEFROIA_URL o sin un NEFROIA_SSO_SECRET
+# de al menos 32 caracteres, el apartado solo muestra «NefroIA no está
+# configurado todavía» y NO se hace ninguna llamada ni se emite ningún token.
+# Solo se envía la identidad del usuario de Hoja Diaria, nunca datos de pacientes.
+def _url_nefroia(valor: str) -> str:
+    valor = (valor or "").strip().rstrip("/")
+    if not valor.startswith(("https://", "http://")) or any(c in valor for c in " \"'<>?#"):
+        return ""
+    return valor
+
+
+NEFROIA_URL = _url_nefroia(os.getenv("NEFROIA_URL", ""))
+NEFROIA_SSO_SECRET = (os.getenv("NEFROIA_SSO_SECRET") or "").strip()
+NEFROIA_SSO_MIN_SECRET = 32
+# Vida del token de acceso en segundos (máx. 120; NefroIA rechaza más).
+NEFROIA_TOKEN_TTL = max(10, min(120, int(os.getenv("NEFROIA_TOKEN_TTL") or 60)))
+NEFROIA_ENABLED = bool(NEFROIA_URL and len(NEFROIA_SSO_SECRET) >= NEFROIA_SSO_MIN_SECRET)
 
 # Integración HL7 con las máquinas AK 98 («Próximamente»). APAGADA por defecto:
 # con false los endpoints /api/hl7/* de ingesta y bandeja responden 404 y la

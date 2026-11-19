@@ -51,6 +51,8 @@ Debe verse **solo en la pantalla de inicio** (antes de entrar a la hoja) y adem�
 ## R9. NefroIA dentro de la app
 Apartado **"IA"** que integra NefroIA (asistente de IA para enfermería renal) con inicio de sesión compartido. Reemplaza el módulo de IA actual (que envía el nombre del paciente al modelo). Detrás de configuración (`NEFROIA_URL`); si no está configurado, el apartado muestra "Próximamente / no configurado".
 
+> **Implementado** según `docs/integracion-nefroia.md` (SSO firmado, `routers/nefroia.py`, apartado «IA» tras EPO/Fe y antes de «Pedido de insumos»).
+
 ## R10. Paciente activo / inactivo
 Campo **estado**: activo / inactivo (motivo: hospitalizado u otro). Los inactivos no cuentan en el pedido de insumos ni en la programación automática.
 

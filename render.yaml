@@ -21,7 +21,9 @@ services:
         value: "true"
       - key: COOKIE_SECURE
         value: "true"
-      - key: ANTHROPIC_API_KEY  # opcional; vacío = módulo IA oculto
+      - key: NEFROIA_URL        # R9: URL pública de NefroIA; vacío = «no configurado»
+        sync: false
+      - key: NEFROIA_SSO_SECRET # R9: mismo valor que en NefroIA (≥ 32 caracteres)
         sync: false
       - key: HL7_ENABLED        # integración HL7 AK 98 «Próximamente»: apagada
         value: "false"
