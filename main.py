@@ -37,6 +37,9 @@ async def lifespan(_: FastAPI):
                 log.info("DEMO_MODE: base vacía, se cargaron %d pacientes ficticios", n)
                 from services import demo_clinico   # R13: médicos y laboratorios ficticios
                 demo_clinico.sembrar_clinico_demo(db)
+            if config.DEMO_EPO_FE:
+                from services import demo_clinico   # R14: EPO/Fe del mes en curso (idempotente)
+                demo_clinico.completar_epo_fe_demo(db)
     if not config.AUTH_ENABLED:
         log.warning("APP_USER/APP_PASSWORD no definidos: login DESACTIVADO (solo para desarrollo local)")
     yield

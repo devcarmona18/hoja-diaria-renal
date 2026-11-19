@@ -46,3 +46,30 @@ def sembrar_clinico_demo(db) -> dict:
                     res["labs"] += 1
     db.commit()
     return res
+
+
+def completar_epo_fe_demo(db, hoy: date | None = None) -> dict:
+    """R14 en la demo: días de diálisis, EPO/Fe mensuales y el plan del mes en curso.
+
+    Idempotente: no toca pacientes que ya tienen ``dias`` y no regenera un mes que ya tiene plan.
+    Solo se llama con DEMO_MODE; nunca con datos reales.
+    """
+    import seed
+    from services import epo_fe
+
+    res = {"pacientes": 0, "mes": 0}
+    pacs = db.query(models.Paciente).order_by(models.Paciente.id).all()
+    if not pacs:
+        return res
+    if not any(p.dias for p in pacs):
+        for i, p in enumerate(pacs):
+            for k, v in {**seed.datos_epo_fe(i, p.cama or 1), **seed.datos_insumos(i, p.acceso)}.items():
+                if getattr(p, k) is None:
+                    setattr(p, k, v)
+            res["pacientes"] += 1
+        db.commit()
+    mes = (hoy or date.today()).strftime("%Y-%m")
+    if not db.query(models.EpoFeMesPaciente).filter_by(mes=mes).first():
+        res["mes"] = epo_fe.generar(db, mes, "demo")["nuevos"]
+        db.commit()
+    return res

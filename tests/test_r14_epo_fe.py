@@ -515,3 +515,33 @@ def test_hospitalizado_distinto_de_falta(admin):
         assert f["celdas"]["2025-09-03"]["estado"] == "falto" and f["celdas"]["2025-09-05"]["epo"] == 2
         assert f["celdas"]["2025-09-03"]["sale"][0]["motivo"] == "falta"
         assert admin.get(f"/api/epo-fe/{MES}/csv").content.decode("utf-8-sig").count("NA") >= 1
+
+
+def test_demo_seed_da_grilla_epo_fe_con_datos(demo):
+    """La demo trae días LMV/MJS y el plan del mes en curso: la grilla R14 no sale vacía.
+
+    En los tests el arranque no lo aplica (DEMO_EPO_FE=false); se invoca y se revierte al final.
+    """
+    from datetime import date
+    from services import demo_clinico
+    mes = date.today().strftime("%Y-%m")
+    try:
+        with SessionLocal() as db:
+            r = demo_clinico.completar_epo_fe_demo(db)
+            assert r["pacientes"] == 144 and r["mes"] > 100
+            assert demo_clinico.completar_epo_fe_demo(db) == {"pacientes": 0, "mes": 0}   # idempotente
+        g = _grilla(demo, mes)
+        assert len(g["filas"]) > 100
+        assert any(f["epo_programada"] > 0 for f in g["filas"])
+        assert any(f["fe_programado"] > 0 for f in g["filas"])
+        with SessionLocal() as db:
+            assert {"LMV", "MJS"} <= {p.dias for p in db.query(models.Paciente).all()}
+            assert db.query(models.Paciente).count() == 144
+            assert db.query(models.Paciente).filter(models.Paciente.citrato.is_(True)).count() > 0
+    finally:
+        _limpiar_mes(mes)
+        with SessionLocal() as db:
+            for p in db.query(models.Paciente).all():
+                p.dias = p.epo_mensual = p.epo_dosis = p.hierro_mensual = None
+                p.citrato = p.heparina_sodica = None
+            db.commit()

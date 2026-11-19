@@ -28,6 +28,9 @@ DATABASE_URL = normalizar_database_url(os.getenv("DATABASE_URL") or "sqlite:///.
 
 # Si está activo y la BD no tiene pacientes, se cargan los ficticios de seed.py al arrancar.
 DEMO_MODE = _bool("DEMO_MODE")
+# Demo: asignar días LMV/MJS y EPO/Fe del mes (con días, cada sesión trae solo la mitad de los
+# pacientes del turno). Los tests lo apagan para conservar los 48 por turno.
+DEMO_EPO_FE = _bool("DEMO_EPO_FE", True)
 
 # Login. Si APP_USER/APP_PASSWORD no están definidos, el login se desactiva (solo para desarrollo local).
 APP_USER = os.getenv("APP_USER", "")

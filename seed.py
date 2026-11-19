@@ -75,6 +75,27 @@ def datos_clinicos(idx: int) -> dict:
     }
 
 
+def datos_epo_fe(idx: int, cama: int) -> dict:
+    """Días de diálisis y prescripción mensual de EPO / hierro ficticios y deterministas (R14).
+
+    Días por cama (mitad LMV, mitad MJS en cada turno); EPO 0-14 jeringas de 4.000 UI
+    al mes (cabe en el tope de 2 por sesión) y hierro 0-4 dosis.
+    """
+    return {
+        "dias": "LMV" if cama % 2 else "MJS",
+        "epo_mensual": float(((idx * 5) % 15) * 4000),
+        "epo_dosis": 4000.0,
+        "hierro_mensual": (idx * 7) % 5,
+    }
+
+
+def datos_insumos(idx: int, acceso: str) -> dict:
+    """Citrato / heparina sódica habituales en algunos catéteres (R5/R6)."""
+    if acceso != "CY":
+        return {}
+    return {"citrato": idx % 4 == 0, "heparina_sodica": idx % 4 == 2}
+
+
 def crear_pacientes() -> list:
     """Genera los 144 pacientes ficticios (3 turnos × 3 estaciones × 16 camas)."""
     pacientes = []
