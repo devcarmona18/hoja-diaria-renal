@@ -612,4 +612,5 @@ button:disabled, .btn-foco:disabled { opacity: .4; cursor: not-allowed; }
   background: #7c2d12; color: #fff; font-size: .75rem; font-weight: 600;
   padding: .125rem .5rem; border-radius: .375rem; white-space: nowrap;
 }
+.badge-mes-cerrado.hidden { display: none; }   /* style.css va después de tailwind: sin esto «hidden» no oculta */
 @media print { .badge-mes-cerrado { background: none; color: #000; border: 1px solid #000; } }
