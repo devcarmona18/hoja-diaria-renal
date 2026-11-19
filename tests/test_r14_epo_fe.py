@@ -83,7 +83,7 @@ def test_generar_grilla_totales_iniciales_y_sin_laboratorio(admin):
         assert _con_epo(fa) == ["2025-09-03", "2025-09-12", "2025-09-19", "2025-09-26"]
         assert sum(x["epo"] for x in fb["celdas"].values()) == 14
         assert sorted(x["epo_ui"] for x in fb["celdas"].values() if x["epo"] == 2) == [8000, 8000]
-        assert len(_con_fe(fa)) == 4 and sum(1 for f in _con_fe(fa) if f < "2025-09-10") == 3
+        assert len(_con_fe(fa)) == 4 and sum(1 for f in _con_fe(fa) if f < "2025-09-10") == 2   # ⌈4/2⌉
         for f in (fa, fb):
             assert not any(f["celdas"].get(d, {}).get("epo") or f["celdas"].get(d, {}).get("fe") for d in LAB)
             assert f["avisos"] == []
@@ -291,7 +291,7 @@ def test_dias_de_laboratorio_configurables_por_mes(admin):
         assert g["dias_lab"] == ["2025-09-17", "2025-09-18"] and not g["dias_lab_por_defecto"]
         f = _fila(g, a["id"])
         assert "2025-09-17" not in _con_fe(f) and "2025-09-17" not in _con_epo(f)
-        assert sum(1 for x in _con_fe(f) if x < "2025-09-17") == 3
+        assert sum(1 for x in _con_fe(f) if x < "2025-09-17") >= 2                        # ⌈4/2⌉
         assert admin.put(f"/api/epo-fe/{MES}/laboratorio", json={"fechas": ["2025-09-07"]}).status_code == 422
         admin.put(f"/api/epo-fe/{MES}/laboratorio", json={"fechas": None})
         assert _grilla(admin)["dias_lab"] == sorted(LAB)

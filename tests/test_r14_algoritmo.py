@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from services.epo_fe_algoritmo import (
-    PacienteFe, bloques, cuantas_antes, dias_lab_por_defecto, posiciones_uniformes,
+    PacienteFe, bloques, cuantas_antes, minimo_antes, dias_lab_por_defecto, posiciones_uniformes,
     repartir_epo, repartir_fe, sesiones_del_mes,
 )
 
@@ -138,13 +138,18 @@ def test_epo_total_exacto_y_sin_laboratorio_cuando_cabe(anio, mes, grupo):
 
 # ── Hierro ────────────────────────────────────────────────────────────────────
 
+def test_minimo_antes_es_un_poco_mas_de_la_mitad():
+    assert [minimo_antes(f) for f in range(0, 7)] == [0, 1, 1, 2, 2, 3, 3]     # ⌈F/2⌉
+
+
 def test_cuantas_antes_mayoria():
-    assert cuantas_antes(4, 0, 4, 4, 8) == (3, 1)
-    assert cuantas_antes(1, 0, 1, 4, 8) == (1, 0)
-    assert cuantas_antes(2, 0, 2, 4, 8) == (2, 0)
+    assert cuantas_antes(4, 0, 4, 4, 8) == (2, 2)              # F par: exactamente la mitad antes
+    assert cuantas_antes(3, 0, 3, 4, 8) == (2, 1)
+    assert cuantas_antes(1, 0, 1, 4, 8) == (1, 0)              # F=1: la única dosis va antes
+    assert cuantas_antes(2, 0, 2, 4, 8) == (1, 1)
     assert cuantas_antes(5, 0, 5, 2, 8) == (2, 3)              # antes solo hay 2 sesiones
     assert cuantas_antes(10, 0, 10, 4, 5) == (4, 5)            # después no caben: se adelantan
-    assert cuantas_antes(4, 2, 2, 4, 8) == (1, 1)              # ya hay 2 fijas antes
+    assert cuantas_antes(4, 2, 2, 4, 8) == (0, 2)              # ya hay 2 fijas antes
 
 
 def test_fe_mayoria_antes_del_laboratorio_y_nunca_en_laboratorio():
@@ -153,7 +158,9 @@ def test_fe_mayoria_antes_del_laboratorio_y_nunca_en_laboratorio():
     r = repartir_fe([PacienteFe(1, ses, 4)], lab)
     fe = r.asignado[1]
     assert len(fe) == 4 and not fe & set(lab)
-    assert sum(1 for d in fe if d < lab[0]) == 3               # ⌊4/2⌋+1 antes del miércoles 10
+    assert sum(1 for d in fe if d < lab[0]) == 2               # ⌈4/2⌉ antes del miércoles 10
+    r = repartir_fe([PacienteFe(1, ses, 1)], lab)
+    assert min(r.asignado[1]) < lab[0]                         # F=1: antes del laboratorio
     assert r.sin_cupo == {} and r.en_lab == {}
 
 
@@ -243,7 +250,7 @@ def test_fe_propiedades_todo_el_anio(mes):
             assert not fe & set(lab)
             antes = sum(1 for d in fe if d < lab[0])
             n_antes = sum(1 for d in normales if d < lab[0])
-            assert antes == min(p.dosis // 2 + 1, n_antes, p.dosis) or antes >= p.dosis - sum(
+            assert antes >= min(minimo_antes(p.dosis), n_antes) or antes >= p.dosis - sum(
                 1 for d in normales if d > lab[0])
 
 
@@ -252,3 +259,21 @@ def test_fe_libres_y_fijas():
     fija = ses[0]
     r = repartir_fe([PacienteFe(1, ses, 2, libres=ses[2:], dosis_mes=3, fijas_antes=1, fijas={fija})], [])
     assert len(r.asignado[1]) == 2 and fija not in r.asignado[1] and ses[1] not in r.asignado[1]
+
+
+def test_fe_opcion_b_diciembre_2026_40_pacientes_carga_pareja():
+    """40 pacientes ficticios (20 LMV + 20 MJS, F = 1..4): antes de la opción B el
+    máximo diario era 15 (80 dosis antes del laboratorio); ahora el mínimo ⌈F/2⌉."""
+    lab = dias_lab_por_defecto(2026, 12)
+    ps = [PacienteFe(i, sesiones_del_mes(2026, 12, LMV if i % 2 else MJS), (i - 1) // 2 % 4 + 1)
+          for i in range(1, 41)]
+    r = repartir_fe(ps, lab)
+    dias = sorted({d for p in ps for d in p.sesiones})
+    pre = [r.carga.get(d, 0) for d in dias if d < lab[0]]
+    post = [r.carga.get(d, 0) for d in dias if d > lab[1]]
+    assert sum(pre) == sum(minimo_antes(p.dosis) for p in ps) == 60
+    assert max(pre) <= 10 and max(pre) - min(pre) <= 3
+    assert sum(post) == 40 and max(post) - min(post) <= 1
+    assert not any(r.carga.get(d) for d in lab)
+    for p in ps:
+        assert sum(1 for d in r.asignado[p.pid] if d < lab[0]) >= minimo_antes(p.dosis)

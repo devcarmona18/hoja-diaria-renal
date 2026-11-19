@@ -26,24 +26,25 @@ laboratorio:
 3. ``E > 2N`` (inevitable): primero 2 jeringas en cada sesión normal, el resto en
    los días de laboratorio (máx. 2 c/u) y, si aún sobra, reparto parejo en todas.
 
-Reparto de hierro (toda la unidad a la vez)
--------------------------------------------
+Reparto de hierro (toda la unidad a la vez) — «opción B»
+--------------------------------------------------------
 Para cada paciente con ``F`` dosis:
-1. **Mayoría antes del laboratorio**: ``⌊F/2⌋ + 1`` dosis en las sesiones previas
-   al primer día de laboratorio (limitado por las sesiones disponibles); el resto
-   después del laboratorio. Si después no caben, se pasan antes.
-2. Dentro de cada tramo (antes / después) las sesiones se dividen en tantos
-   **bloques consecutivos** como dosis haya (mismo tamaño ±1) y cada dosis va en
-   su propio bloque: así quedan espaciadas y nunca amontonadas.
-3. Dentro del bloque se escoge la sesión cuyo **día tenga menos hierros en la
-   unidad**; empates: no pegada a otra dosis del paciente, más cerca del centro
-   del bloque, la más temprana.
-4. Orden de los pacientes: primero los más «apretados» (dosis/sesiones mayor),
-   luego más dosis, luego id. Al final una **mejora local** mueve dosis dentro
-   de su bloque desde los días más cargados a días con al menos 2 hierros menos,
-   hasta que no haya mejora (baja el máximo diario sin romper el espaciado).
-5. Días de laboratorio: solo si ``F`` supera las sesiones normales (inevitable),
-   y solo las dosis que sobran. Si ni así caben (F > sesiones), sobran «sin cupo».
+1. **Un poco más de la mitad antes del laboratorio**: al menos ``⌈F/2⌉`` dosis en
+   las sesiones previas al primer día de laboratorio (F=1 → la única va antes si se
+   puede; F=2 → 1; F=4 → 2). Las demás van donde el reparto parejo y la carga lo
+   indiquen (antes o después).
+2. Las sesiones normales del mes se dividen en ``F`` **bloques consecutivos** (mismo
+   tamaño ±1), una dosis por bloque: quedan espaciadas en todo el mes. Si ese reparto
+   no deja ``⌈F/2⌉`` bloques antes del laboratorio, se usan ``⌈F/2⌉`` bloques antes y
+   el resto después.
+3. Dentro del bloque se escoge el **día con menos hierros en la unidad**; empates:
+   no pegada a otra dosis del paciente, más cerca del centro, la más temprana.
+4. Orden de los pacientes: primero los más «apretados». Al final una **mejora local**
+   mueve dosis (dentro del bloque ampliado medio bloque a cada lado) desde los días
+   más cargados a días con al menos 2 hierros menos, sin pegar dosis y sin bajar del
+   mínimo antes del laboratorio.
+5. Días de laboratorio: solo si ``F`` supera las sesiones normales (inevitable).
+   Si ni así caben (F > sesiones), sobran «sin cupo».
 
 Todo es determinista: mismos datos → misma programación.
 """
@@ -197,14 +198,23 @@ class _Dosis:
         return (self.lo + self.hi - 1) / 2
 
 
+def minimo_antes(dosis_mes: int) -> int:
+    """Dosis del mes que deben ir ANTES del primer día de laboratorio: «un poco más de
+    la mitad» = ⌈F/2⌉ (F=1 → 1, F=2 → 1, F=3 → 2, F=4 → 2, F=5 → 3)."""
+    return -(-max(0, dosis_mes) // 2)
+
+
 def cuantas_antes(dosis_mes: int, fijas_antes: int, dosis: int, n_antes: int, n_despues: int) -> tuple[int, int]:
-    """(dosis antes, dosis después) del laboratorio. Mayoría = ⌊F/2⌋+1 del total del mes."""
+    """(mínimo antes, resto) del laboratorio para las ``dosis`` libres del paciente.
+
+    Mínimo antes = ⌈F/2⌉ del total del mes menos las ya fijas antes, limitado por las
+    sesiones disponibles. Si después del laboratorio no caben las demás, se adelantan.
+    """
     if dosis <= 0:
         return 0, 0
-    meta = max(0, dosis_mes // 2 + 1 - fijas_antes)
-    antes = min(meta, dosis, n_antes)
+    antes = min(max(0, minimo_antes(dosis_mes) - fijas_antes), dosis, n_antes)
     despues = dosis - antes
-    if despues > n_despues:                       # después no caben: se adelantan
+    if despues > n_despues:
         despues = n_despues
         antes = min(n_antes, dosis - despues)
     return antes, despues
@@ -212,6 +222,8 @@ def cuantas_antes(dosis_mes: int, fijas_antes: int, dosis: int, n_antes: int, n_
 
 def repartir_fe(pacientes: list[PacienteFe], dias_lab: Iterable[date] = (),
                 carga_base: dict[date, int] | None = None, max_iter: int = 5000) -> ResultadoFe:
+    """Reparto de hierro «opción B»: lo más parejo posible en el mes y en la carga
+    diaria de la unidad, con al menos ⌈F/2⌉ dosis antes del laboratorio."""
     lab = set(dias_lab)
     primer_lab = min(lab) if lab else None
     carga: dict[date, int] = dict(carga_base or {})
@@ -219,6 +231,7 @@ def repartir_fe(pacientes: list[PacienteFe], dias_lab: Iterable[date] = (),
     dosis_de: dict[int, list[_Dosis]] = {}
     orden_ses: dict[int, dict[date, int]] = {}
     elegidas: dict[int, set[date]] = {}
+    min_antes: dict[int, int] = {}
 
     def apretado(p: PacienteFe):
         normales = [s for s in p.libres if s not in lab]
@@ -239,31 +252,33 @@ def repartir_fe(pacientes: list[PacienteFe], dias_lab: Iterable[date] = (),
         elegidas[p.pid] = set(p.fijas)
         dosis_de[p.pid] = []
         res.asignado[p.pid] = set()
+        min_antes[p.pid] = 0
         if p.dosis <= 0:
             continue
         normales = [s for s in p.libres if s not in lab]
-        if primer_lab is not None:
-            antes = [s for s in normales if s < primer_lab]
-            despues = [s for s in normales if s >= primer_lab]
-            k_antes, k_despues = cuantas_antes(p.dosis_mes, p.fijas_antes, p.dosis, len(antes), len(despues))
-            tramos = [(antes, k_antes), (despues, k_despues)]
-        else:
-            k = min(p.dosis, len(normales))
-            tramos = [(normales, k)]
-        puestas = 0
-        for tramo, k in tramos:
-            if k <= 0:
-                continue
-            for lo, hi in bloques(len(tramo), k):
-                centro = (lo + hi - 1) / 2
-                i = min(range(lo, hi), key=lambda i: (carga.get(tramo[i], 0), pegada(p.pid, tramo[i]),
-                                                      abs(i - centro), i))
-                d = _Dosis(p.pid, tramo, lo, hi, i)
-                dosis_de[p.pid].append(d)
-                elegidas[p.pid].add(d.fecha)
-                carga[d.fecha] = carga.get(d.fecha, 0) + 1
-                puestas += 1
-        resto = p.dosis - puestas
+        k = min(p.dosis, len(normales))
+        bl: list[tuple[int, int]] = []          # bloques (índices en «normales»)
+        if k and primer_lab is not None:
+            n_a = sum(1 for s in normales if s < primer_lab)
+            k_a, k_d = cuantas_antes(p.dosis_mes, p.fijas_antes, k, n_a, len(normales) - n_a)
+            min_antes[p.pid] = k_a
+            globales = bloques(len(normales), k)
+            if sum(1 for lo, hi in globales if hi <= n_a) >= k_a:
+                bl = globales               # el reparto parejo del mes ya cumple el mínimo antes
+            else:
+                bl = ([(lo, hi) for lo, hi in bloques(n_a, k_a)] if k_a else []) + \
+                     ([(n_a + lo, n_a + hi) for lo, hi in bloques(len(normales) - n_a, k_d)] if k_d else [])
+        elif k:
+            bl = bloques(len(normales), k)
+        for lo, hi in bl:
+            centro = (lo + hi - 1) / 2
+            i = min(range(lo, hi), key=lambda i: (carga.get(normales[i], 0), pegada(p.pid, normales[i]),
+                                                  abs(i - centro), i))
+            d = _Dosis(p.pid, normales, lo, hi, i)
+            dosis_de[p.pid].append(d)
+            elegidas[p.pid].add(d.fecha)
+            carga[d.fecha] = carga.get(d.fecha, 0) + 1
+        resto = p.dosis - len(bl)
         if resto > 0:   # inevitable: días de laboratorio (los menos cargados)
             libres_lab = sorted((s for s in p.libres if s in lab), key=lambda s: (carga.get(s, 0), s))
             for s in libres_lab[:resto]:
@@ -274,26 +289,37 @@ def repartir_fe(pacientes: list[PacienteFe], dias_lab: Iterable[date] = (),
             if resto > len(libres_lab):
                 res.sin_cupo[p.pid] = resto - len(libres_lab)
 
-    # Mejora local: mover dosis dentro de su bloque hacia días con >= 2 hierros menos.
+    def antes_de(pid: int) -> int:
+        return sum(1 for d in dosis_de[pid] if primer_lab is not None and d.fecha < primer_lab)
+
+    # Mejora local (prioriza la carga diaria): una dosis puede moverse dentro de su bloque
+    # ampliado medio bloque a cada lado, a un día con >= 2 hierros menos, sin quedar pegada
+    # a otra dosis del paciente y sin bajar del mínimo antes del laboratorio.
     todas = [d for ds in dosis_de.values() for d in ds]
     for _ in range(max_iter):
         movida = False
         for d in sorted(todas, key=lambda d: (-carga.get(d.fecha, 0), d.fecha, d.pid)):
             actual = carga.get(d.fecha, 0)
+            ext = max(1, (d.hi - d.lo) // 2)
+            lo, hi = max(0, d.lo - ext), min(len(d.tramo), d.hi + ext)
             opciones = sorted(
-                (j for j in range(d.lo, d.hi) if d.tramo[j] not in elegidas[d.pid]),
+                (j for j in range(lo, hi) if d.tramo[j] not in elegidas[d.pid]),
                 key=lambda j: (carga.get(d.tramo[j], 0), pegada(d.pid, d.tramo[j], ignorar=d.fecha),
                                abs(j - d.centro), j))
             for j in opciones:
                 destino = d.tramo[j]
-                if carga.get(destino, 0) + 1 < actual and not pegada(d.pid, destino, ignorar=d.fecha):
-                    carga[d.fecha] -= 1
-                    elegidas[d.pid].discard(d.fecha)
-                    d.i = j
-                    elegidas[d.pid].add(destino)
-                    carga[destino] = carga.get(destino, 0) + 1
-                    movida = True
-                    break
+                if carga.get(destino, 0) + 1 >= actual or pegada(d.pid, destino, ignorar=d.fecha):
+                    continue
+                if (primer_lab is not None and d.fecha < primer_lab <= destino
+                        and antes_de(d.pid) - 1 < min_antes[d.pid]):
+                    continue
+                carga[d.fecha] -= 1
+                elegidas[d.pid].discard(d.fecha)
+                d.i = j
+                elegidas[d.pid].add(destino)
+                carga[destino] = carga.get(destino, 0) + 1
+                movida = True
+                break
             if movida:
                 break
         if not movida:
