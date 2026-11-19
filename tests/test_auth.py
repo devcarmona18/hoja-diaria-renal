@@ -20,7 +20,7 @@ def test_login_correcto(admin):
     assert me["autenticado"] is True
     assert me["rol"] == "admin"
     assert me["demo_mode"] is True
-    assert me["ia_enabled"] is False
+    assert me["nefroia_configurado"] is False   # R9: sin NEFROIA_URL/SECRET
 
 
 def test_logout(admin):
