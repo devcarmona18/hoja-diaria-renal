@@ -15,7 +15,7 @@ let G = {
   vista:      "dashboard",
   saveTimers: {},
   pendientes: new Set(),
-  me:         {},      // /api/auth/me → rol, demo_mode, ia_enabled…
+  me:         {},      // /api/auth/me → rol, demo_mode, nefroia_configurado…
   readonly:   false,   // true para el usuario demo (solo lectura)
 }
 
@@ -179,8 +179,9 @@ const MENU_INICIO = [
     hover: "hover:bg-purple-50",  borde: "border-purple-200",  texto: "text-purple-800" },
   { id: "epo",           accion: "renderAutoProgram()",   icono: "💊", titulo: "EPO / Fe del mes",  sub: "Auto-programación mensual",
     hover: "hover:bg-teal-50",    borde: "border-teal-200",    texto: "text-teal-800" },
-  { id: "ia",            accion: "renderIA(null, null)",  icono: "🤖", titulo: "IA Clínica (F4)",   sub: "Consulta sobre historial del paciente",
-    hover: "hover:bg-indigo-50",  borde: "border-indigo-200",  texto: "text-indigo-800", extra: "solo-ia solo-admin" },
+  // R9: NefroIA (asistente de IA) tras las secciones clínicas, antes del pedido de insumos; no envía datos de pacientes.
+  { id: "ia",            accion: "renderIA()",            icono: "🤖", titulo: "IA · NefroIA",      sub: "Asistente de enfermería renal",
+    hover: "hover:bg-indigo-50",  borde: "border-indigo-200",  texto: "text-indigo-800" },
   { id: "insumos",       accion: "renderInsumos()",       icono: "📦", titulo: "Pedido de insumos", sub: "Para el próximo día · adicionales · devoluciones",
     hover: "menu-insumos",        borde: "border-orange-200",  texto: "text-orange-700" },
   { id: "proximamente",  accion: "renderProximamente()",  icono: "🚀", titulo: "Próximamente",      sub: "Integración con las máquinas AK 98",
@@ -1238,7 +1239,6 @@ async function iniciarApp() {
   if (G.me.auth_enabled && !G.me.autenticado) { location.href = "/login"; return }
   G.readonly = G.me.rol === "demo"
   document.body.classList.toggle("modo-demo", G.readonly)
-  document.body.classList.toggle("sin-ia", !G.me.ia_enabled)
   pintarBarraUsuario()
   renderDashboard()
 }

@@ -133,5 +133,5 @@ def me(request: Request):
         "usuario": request.session.get("usuario") if config.AUTH_ENABLED else None,
         "auth_enabled": config.AUTH_ENABLED,
         "demo_mode": config.DEMO_MODE,
-        "ia_enabled": config.IA_ENABLED,
+        "nefroia_configurado": config.NEFROIA_ENABLED,  # R9
     }

@@ -82,8 +82,6 @@ async function renderCRUD(turno = "M") {
                    class="solo-admin bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded font-medium">Reactivar</button>`}
             <button onclick="crudVerLabs(${p.id})"
               class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs px-2 py-1 rounded font-medium">Labs</button>
-            <button onclick="crudVerIA(${p.id}, '${nomEsc}')"
-              class="solo-ia solo-admin bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs px-2 py-1 rounded font-medium">IA</button>
           </div>
         </td>
       </tr>`
@@ -608,9 +606,4 @@ function crudVerLabs(pacienteId) {
   const p = _crudPacientes.find(x => x.id === pacienteId)
   if (typeof renderLabs === "function") renderLabs(pacienteId, p?.nombre || "Paciente")
   else toast("Módulo de laboratorios no disponible", "warn")
-}
-
-function crudVerIA(pacienteId, pacienteNombre) {
-  if (typeof renderIA === "function") renderIA(pacienteId, pacienteNombre)
-  else toast("Módulo IA no disponible", "warn")
 }
