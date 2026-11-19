@@ -80,6 +80,11 @@ Vista mensual por paciente: **nombre**, dos casillas pequeñas **EPO del mes** y
   - La **mayoría antes del día de laboratorio**. Día de laboratorio: **miércoles y jueves de la segunda semana** del mes (configurable). Esos días **no** se programa nada salvo que sea inevitable por la dosis.
 - La programación **llena automáticamente** la EPO y el Fe de la hoja diaria (sin marcarlos a mano).
 - **Inasistencia**: si un paciente con EPO programada no asiste, se **reprograma**: la siguiente sesión lleva su EPO + la perdida (p. ej. 2). Si es **hierro**, se pasa a una sesión futura que **no** tenga hierro.
+- **Confirmado (noviembre 2026)**:
+  - **Tope de EPO: máximo 2 jeringas (8.000 UI) por sesión** y, por lo tanto, **máximo 24 jeringas al mes** (la EPO del mes se valida: ≤ 24 y ≤ 2 × sesiones del paciente ese mes). Al reprogramar nunca se pasa de 8.000 UI en una sesión: el exceso sigue a las sesiones siguientes (máx. 2 c/u); si algo no cabe en el mes se avisa. El selector de la hoja ofrece solo —, 4.000 y 8.000.
+  - **Hierro «opción B»**: repartir lo más parejo posible en el mes, priorizando el equilibrio de la carga diaria de la unidad; antes del laboratorio solo «un poco más de la mitad»: al menos **⌈F/2⌉** dosis de cada paciente (F=1: la dosis va antes si se puede); el resto donde el reparto parejo y la carga lo indiquen. Los días de laboratorio se siguen evitando salvo que sea inevitable.
+  - **Hospitalizado (H)**: la EPO y el hierro de las sesiones en que el paciente está hospitalizado se **cancelan** (no se arrastran). Cuando vuelve (primera sesión a la que asiste después), se reprograma para **recuperar lo cancelado del mes que quepa** en las sesiones que quedan, respetando el tope, el laboratorio y la carga. Una falta normal (NA, F…) mantiene la regla de arrastre.
+  - Detalle de las reglas y del algoritmo: `docs/epo-hierro.md`.
 - Se ve todo el mes; al terminar el mes puede borrarse.
 
 ## R15. Otras automatizaciones
