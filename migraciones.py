@@ -30,8 +30,8 @@ Cambios de esta entrega:
       (bitácora de archivar / restaurar / reactivar)
   R14 registros.epo_jeringas / epo_fe_manual y tablas epo_fe_mes, epo_fe_celdas,
       epo_fe_movimientos, epo_fe_config_mes, epo_fe_auditoria (auto-programación
-      mensual de EPO / hierro). Los registros antiguos quedan con epo_jeringas NULL
-      (= una aplicación, como antes).
+      mensual de EPO / hierro) y epo_fe_movimientos.motivo (falta | hosp). Los
+      registros antiguos quedan con epo_jeringas NULL (= una aplicación, como antes).
 
 Es la ÚNICA ruta de migración de esquema: main.py (arranque) y migrate.py
 llaman a ``aplicar``; no hay que duplicar ALTER TABLE en otros módulos.
@@ -200,6 +200,7 @@ def _aplicar_r11_r13(engine) -> list[str]:
 COLUMNAS_R14 = [
     ("registros", "epo_jeringas", "INTEGER"),
     ("registros", "epo_fe_manual", "BOOLEAN"),
+    ("epo_fe_movimientos", "motivo", "VARCHAR(10)"),   # falta | hosp (NULL = falta)
 ]
 
 

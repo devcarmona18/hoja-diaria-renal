@@ -21,6 +21,10 @@ Estado de un día del paciente (solo cuentan las hojas CERRADAS):
   regla que el pedido de insumos).
 - ``falto``: fila en hoja cerrada sin A y sin peso de entrada; o su hoja habitual
   (su turno) de ese día cerrada y él no aparece en ninguna hoja de ese día.
+- ``hosp``: hoja cerrada con asistencia **H** (hospitalizado): la EPO y el hierro de
+  ese día se CANCELAN (no pasan a la sesión siguiente). Cuando el paciente vuelve
+  (primera sesión a la que asiste después) se recupera lo que quepa en las sesiones
+  que quedan del mes.
 - ``inactivo``: el día cae en un periodo de inactividad/archivo (no se reprograma).
 - sin estado: día aún abierto o futuro (puede recibir dosis reprogramadas).
 """
@@ -47,6 +51,8 @@ JERINGA_UI = alg.JERINGA_UI
 DIAS_SEMANA = {"LMV": (0, 2, 4), "MJS": (1, 3, 5), "TJS": (1, 3, 5)}
 DIA_CORTO = ["L", "M", "X", "J", "V", "S", "D"]
 ASISTIO, FALTO, INACTIVO = "asistio", "falto", "inactivo"
+HOSPITALIZADO = "hosp"     # asistencia «H» en la hoja cerrada: la dosis se CANCELA
+MOTIVO_FALTA, MOTIVO_HOSP = "falta", "hosp"     # epo_fe_movimientos.motivo
 MAX_EPO_CELDA = alg.EPO_MAX_SESION      # tope: 2 jeringas (8.000 UI) por sesión
 
 
@@ -130,7 +136,7 @@ def estados(db: Session, mes: str, pacientes: dict[int, models.Paciente]) -> dic
         # En una fila con suplente, el paciente reemplazado cuenta como «H» sin peso.
         personas = []
         if r.transitorio_paciente_id:
-            personas.append((r.paciente_id, r.asistencia or "H", None))
+            personas.append((r.paciente_id, r.asistencia, None))
             personas.append((r.transitorio_paciente_id, r.transitorio_asistencia, r.peso_entrada))
         else:
             personas.append((r.paciente_id, r.asistencia, r.peso_entrada))
@@ -141,8 +147,11 @@ def estados(db: Session, mes: str, pacientes: dict[int, models.Paciente]) -> dic
             clave = (pid, s.fecha)
             if hd.llego(asis, peso):
                 out[clave] = ASISTIO
-            elif hd.falto(asis, peso, hoja_cerrada=True):
-                out.setdefault(clave, FALTO)
+            elif hd.falto(asis, peso, hoja_cerrada=True) and out.get(clave) != ASISTIO:
+                if asis == "H":
+                    out[clave] = HOSPITALIZADO      # hospitalizado: se cancela, no se arrastra
+                else:
+                    out.setdefault(clave, FALTO)
     per = _periodos(db, pacientes)
     anio, m = _anio_mes(mes)
     for pid, p in pacientes.items():
@@ -196,7 +205,7 @@ class Mes:
 # ── Planificación (generar / regenerar / replanificar pacientes) ─────────────
 
 def _fija(mesobj: Mes, pid: int, f: str, c: models.EpoFeCelda) -> bool:
-    return bool(c.manual) or mesobj.estado.get((pid, f)) in (ASISTIO, FALTO, INACTIVO)
+    return bool(c.manual) or mesobj.estado.get((pid, f)) in (ASISTIO, FALTO, HOSPITALIZADO, INACTIVO)
 
 
 def _planificar(db: Session, mesobj: Mes, pids: set[int], regenerar: bool = False) -> None:
@@ -370,7 +379,7 @@ def ajustar_celda(db: Session, mes: str, pid: int, fecha: str, epo: Optional[int
     _exigir_plan(mesobj, pid)
     p = mesobj.pacientes[pid]
     st = mesobj.estado.get((pid, fecha))
-    if st in (ASISTIO, FALTO):
+    if st in (ASISTIO, FALTO, HOSPITALIZADO):
         raise ReglaError("Ese día ya se cerró: no se puede cambiar su programación.", 409)
     c = mesobj.celdas[pid].get(fecha)
     if c is None:
@@ -453,6 +462,10 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
       sesión**: lo que excede sigue a las sesiones siguientes (máx. 2 c/u).
     - Hierro: pasa a una sesión futura aún abierta SIN hierro; se prefiere un día que
       no sea de laboratorio, luego el día con menos hierros en la unidad, luego el más cercano.
+    - Hospitalizado (asistencia H): la EPO y el hierro de esos días se CANCELAN. Al
+      volver (primera sesión a la que asiste después) se recupera lo cancelado,
+      repartido parejo en las sesiones abiertas que quedan del mes, con el tope de
+      2 jeringas por sesión, 1 hierro por sesión y evitando el laboratorio.
     - Lo que no cabe en el mes queda «pendiente sin sesión» (avisado en la grilla).
     Las reprogramaciones ya hechas se conservan (mismo destino); si la asistencia se
     corrige (sí vino) se revierten. Todo queda en la bitácora. Idempotente.
@@ -462,7 +475,7 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
     exigir_abierto(db, mes)
     db.flush()
     mesobj = Mes(db, mes)
-    resumen = {"reprogramadas": 0, "revertidas": 0, "ajustadas": 0, "sin_destino": 0}
+    resumen = {"reprogramadas": 0, "revertidas": 0, "ajustadas": 0, "sin_destino": 0, "canceladas": 0}
     if not mesobj.generado:
         return resumen
     lab = {d.isoformat() for d in mesobj.lab}
@@ -536,37 +549,128 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
             out.append((None, resto))
         return out
 
-    def guardar(pid: int, f: str, tipo: str, destinos: list, motivo: str) -> None:
+    def guardar(pid: int, f: str, tipo: str, destinos: list, motivo: str,
+                vuelve: Optional[str] = None) -> None:
+        """``motivo``: «falta» (se arrastra) u «hosp» (cancelada; ``vuelve`` = día en que regresó)."""
         prev = {m.fecha_destino: m for m in previos.get((pid, f, tipo), [])}
         que = "jeringa(s) de EPO" if tipo == "epo" else "dosis de hierro"
+        causa = "hospitalizado" if motivo == MOTIVO_HOSP else "no asistió"
         for g, n in destinos:
             mv = prev.pop(g, None)
             if mv is None:
                 mv = models.EpoFeMovimiento(mes=mes, paciente_id=pid, tipo=tipo, fecha_origen=f,
-                                            fecha_destino=g, cantidad=n, activo=True,
+                                            fecha_destino=g, cantidad=n, activo=True, motivo=motivo,
                                             creado_por=usuario, creado_en=ahora, actualizado_en=ahora)
                 db.add(mv)
                 db.flush()
-                if g:
+                if g and motivo == MOTIVO_HOSP:
                     resumen["reprogramadas"] += 1
-                    _auditar(db, mes, "reprogramar", f"{nombre(pid)}: {motivo} el {f}; {n} {que} pasa(n) al {g}",
+                    _auditar(db, mes, "recuperar", f"{nombre(pid)}: hospitalizado el {f}, volvió el {vuelve}; "
+                             f"se recupera(n) {n} {que} el {g}", usuario, pid)
+                elif g:
+                    resumen["reprogramadas"] += 1
+                    _auditar(db, mes, "reprogramar", f"{nombre(pid)}: {causa} el {f}; {n} {que} pasa(n) al {g}",
                              usuario, pid)
+                elif motivo == MOTIVO_HOSP and not vuelve:
+                    resumen["canceladas"] += 1
+                    _auditar(db, mes, "cancelar", f"{nombre(pid)}: hospitalizado el {f}; {n} {que} cancelada(s) "
+                             "(se recupera lo que quepa cuando vuelva)", usuario, pid)
                 else:
                     resumen["sin_destino"] += 1
-                    _auditar(db, mes, "sin_destino", f"{nombre(pid)}: {motivo} el {f}; {n} {que} sin sesión "
+                    _auditar(db, mes, "sin_destino", f"{nombre(pid)}: {causa} el {f}; {n} {que} sin sesión "
                              "libre en el mes", usuario, pid)
-            elif mv.cantidad != n:
-                _auditar(db, mes, "ajustar", f"{nombre(pid)}: reprogramación del {f} al {g or '—'} "
-                         f"{mv.cantidad}→{n}", usuario, pid)
-                mv.cantidad, mv.actualizado_en = n, ahora
-                resumen["ajustadas"] += 1
+            else:
+                if (mv.motivo or MOTIVO_FALTA) != motivo:
+                    mv.motivo, mv.actualizado_en = motivo, ahora
+                if mv.cantidad != n:
+                    _auditar(db, mes, "ajustar", f"{nombre(pid)}: reprogramación del {f} al {g or '—'} "
+                             f"{mv.cantidad}→{n}", usuario, pid)
+                    mv.cantidad, mv.actualizado_en = n, ahora
+                    resumen["ajustadas"] += 1
             vistos.add(mv.id)
             if g:
                 llega[(pid, g, tipo)] += n
 
+    # Hospitalización: días H agrupados hasta el regreso (primer día en que asistió después)
+    asistio_de: dict[int, list[str]] = defaultdict(list)
+    for (pid, g), st in mesobj.estado.items():
+        if st == ASISTIO:
+            asistio_de[pid].append(g)
+    for pid in asistio_de:
+        asistio_de[pid].sort()
+
+    def regreso(pid: int, f: str) -> Optional[str]:
+        return next((g for g in asistio_de.get(pid, []) if g > f), None)
+
+    pendientes_hosp: dict[int, list[tuple[str, str, int, Optional[str]]]] = defaultdict(list)
+
+    def recuperar(pid: int, vuelve: Optional[str], grupo: list) -> None:
+        """Reparte lo cancelado por hospitalización en las sesiones abiertas después de ``vuelve``."""
+        for tipo in ("epo", "fe"):
+            origenes = [(f, q) for f, tp, q, _ in grupo if tp == tipo and q > 0]
+            total = sum(q for _, q in origenes)
+            if not total:
+                continue
+            asignado: list[str] = []          # una entrada por jeringa / dosis
+            if vuelve:
+                previos_dest: dict[str, int] = defaultdict(int)
+                for f, _ in origenes:
+                    for mv in previos.get((pid, f, tipo), []):
+                        if mv.fecha_destino:
+                            previos_dest[mv.fecha_destino] += mv.cantidad
+                for g in sorted(previos_dest):
+                    st = mesobj.estado.get((pid, g))
+                    if g <= vuelve or (pid, g) not in plan or st == INACTIVO:
+                        continue
+                    n = min(total - len(asignado), previos_dest[g] if st else cupo(pid, g, tipo))
+                    asignado += [g] * max(0, n)
+                    llega[(pid, g, tipo)] += max(0, n)
+                abiertas = [g for g in fechas_de.get(pid, []) if g > vuelve and mesobj.estado.get((pid, g)) is None]
+                while len(asignado) < total:
+                    cands = [g for g in abiertas if g not in lab and cupo(pid, g, tipo) > 0
+                             and (tipo == "epo" or g not in asignado)]
+                    if not cands:
+                        cands = [g for g in abiertas if g in lab and cupo(pid, g, tipo) > 0
+                                 and (tipo == "epo" or g not in asignado)]
+                    if not cands:
+                        break
+                    k = min(total - len(asignado), len(cands))
+                    for i in alg.posiciones_uniformes(len(cands), k):
+                        asignado.append(cands[i])
+                        llega[(pid, cands[i], tipo)] += 1
+                for g in asignado:            # se descuenta abajo al repartirlo por origen
+                    llega[(pid, g, tipo)] -= 1
+            asignado.sort()
+            pos = 0
+            for f, q in origenes:
+                parte = asignado[pos:pos + q]
+                pos += len(parte)
+                destinos: dict[Optional[str], int] = defaultdict(int)
+                for g in parte:
+                    destinos[g] += 1
+                if len(parte) < q:
+                    destinos[None] += q - len(parte)
+                guardar(pid, f, tipo, sorted(destinos.items(), key=lambda x: x[0] or "9999"),
+                        MOTIVO_HOSP, vuelve)
+
+    def vaciar_hosp(pid: int, hasta: Optional[str]) -> None:
+        """Recupera los grupos de hospitalización cuyo regreso ya pasó (``hasta`` None = todos)."""
+        grupos: dict[Optional[str], list] = defaultdict(list)
+        quedan = []
+        for item in pendientes_hosp.get(pid, []):
+            vuelve = item[3]
+            if hasta is None or (vuelve is not None and vuelve <= hasta):
+                grupos[vuelve].append(item)
+            else:
+                quedan.append(item)
+        pendientes_hosp[pid] = quedan
+        for vuelve, grupo in sorted(grupos.items(), key=lambda x: x[0] or "9999"):
+            recuperar(pid, vuelve, grupo)
+
     for pid, f in sorted(plan, key=lambda k: (k[1], k[0])):
         c = plan[(pid, f)]
         st = mesobj.estado.get((pid, f))
+        vaciar_hosp(pid, f)
         for tipo in ("epo", "fe"):
             prev = previos.get((pid, f, tipo), [])
             for mv in prev:                                   # ya se recorre su origen
@@ -575,9 +679,14 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
                     if tipo == "fe":
                         carga_fe[mv.fecha_destino] -= mv.cantidad
             qty = (c.epo if tipo == "epo" else c.fe) + llega[(pid, f, tipo)]
-            if st != FALTO or qty <= 0:
+            if qty <= 0:
                 continue
-            guardar(pid, f, tipo, repartir(pid, f, tipo, qty, prev), "no asistió")
+            if st == HOSPITALIZADO:
+                pendientes_hosp[pid].append((f, tipo, qty, regreso(pid, f)))
+            elif st == FALTO:
+                guardar(pid, f, tipo, repartir(pid, f, tipo, qty, prev), MOTIVO_FALTA)
+    for pid in list(pendientes_hosp):
+        vaciar_hosp(pid, None)
     for mv in mesobj.movs:
         if mv.id not in vistos:
             mv.activo, mv.actualizado_en = False, ahora
@@ -668,7 +777,8 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
     for mv in mesobj.movs:
         if mv.fecha_destino:
             llegan[(mv.paciente_id, mv.fecha_destino)].append(
-                {"tipo": mv.tipo, "cantidad": mv.cantidad, "desde": mv.fecha_origen})
+                {"tipo": mv.tipo, "cantidad": mv.cantidad, "desde": mv.fecha_origen,
+                 "motivo": mv.motivo or MOTIVO_FALTA})
     inic = _iniciales(db)
     totales_dia: dict[str, dict] = {d["fecha"]: {"epo_jeringas": 0, "fe": 0} for d in dias}
     filas = []
@@ -688,11 +798,12 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
                 "epo": e, "fe": fe, "epo_ui": e * JERINGA_UI, "epo_plan": c.epo or 0, "fe_plan": c.fe or 0,
                 "manual": bool(c.manual), "estado": st, "lab": f in lab,
                 "llega": llegan.get((pid, f), []),
-                "sale": [{"tipo": mv.tipo, "cantidad": mv.cantidad, "hacia": mv.fecha_destino}
+                "sale": [{"tipo": mv.tipo, "cantidad": mv.cantidad, "hacia": mv.fecha_destino,
+                          "motivo": mv.motivo or MOTIVO_FALTA}
                          for mv in sorted(sale.get((pid, f), []),
                                           key=lambda m: (m.tipo, m.fecha_destino or "9999"))],
             }
-            if f in totales_dia and st != FALTO:
+            if f in totales_dia and st not in (FALTO, HOSPITALIZADO):
                 totales_dia[f]["epo_jeringas"] += e
                 totales_dia[f]["fe"] += fe
             if e > alg.EPO_MAX_NORMAL:
@@ -703,10 +814,16 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
             avisos.append(f"EPO programada {epo_plan} de {t.epo_jeringas} jeringas")
         if fe_plan != (t.fe_dosis or 0):
             avisos.append(f"Fe programado {fe_plan} de {t.fe_dosis} dosis")
+        volvio = sorted(g for (q, g), st in mesobj.estado.items() if q == pid and st == ASISTIO)
         for mv in mesobj.movs:
             if mv.paciente_id == pid and not mv.fecha_destino:
-                avisos.append(f"Pendiente sin sesión: {mv.cantidad} {'jeringa(s) EPO' if mv.tipo == 'epo' else 'dosis Fe'}"
-                              f" del {mv.fecha_origen[8:]}")
+                que = f"{mv.cantidad} {'jeringa(s) EPO' if mv.tipo == 'epo' else 'dosis Fe'} del {mv.fecha_origen[8:]}"
+                if mv.motivo == MOTIVO_HOSP and not any(g > mv.fecha_origen for g in volvio):
+                    avisos.append(f"Hospitalizado: {que} cancelada(s); se recupera al volver")
+                elif mv.motivo == MOTIVO_HOSP:
+                    avisos.append(f"No se pudo recuperar en el mes: {que} (hospitalización)")
+                else:
+                    avisos.append(f"Pendiente sin sesión: {que}")
         filas.append({
             "paciente_id": pid, "nombre": p.nombre, "cedula": p.cedula, "turno": p.turno,
             "estacion": p.estacion, "cama": p.cama, "dias": p.dias, "medico": p.medico or "",
@@ -741,6 +858,8 @@ def texto_celda(c: Optional[dict]) -> str:
         return ""
     if c["estado"] == FALTO:
         return "NA"
+    if c["estado"] == HOSPITALIZADO:
+        return "H"
     partes = []
     if c["epo"]:
         partes.append(f"{c['epo_ui']:,}".replace(",", "."))

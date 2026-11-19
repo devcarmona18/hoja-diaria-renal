@@ -28,7 +28,7 @@ function _efCelda(f, d) {
   const cls = ["ef-c"]
   if (d.lab) cls.push("ef-lab")
   if (c.manual) cls.push("ef-manual")
-  if (c.estado === "falto") cls.push("ef-falto")
+  if (c.estado === "falto" || c.estado === "hosp") cls.push("ef-falto")
   if (c.estado === "inactivo") cls.push("ef-inact")
   if (c.llega.length) cls.push("ef-llega")
   const tit = [`${f.nombre} · ${d.dow} ${d.dia}`]
@@ -36,13 +36,17 @@ function _efCelda(f, d) {
   if (c.estado === "falto") {
     txt = `<span class="ef-na">NA</span>`
     c.sale.forEach(s => tit.push(`No asistió: ${s.tipo === "epo" ? s.cantidad + " jer. EPO" : "Fe"} → ${s.hacia ? fmtFecha(s.hacia) : "sin sesión libre"}`))
+  } else if (c.estado === "hosp") {
+    txt = `<span class="ef-na">H</span>`
+    tit.push("Hospitalizado: la dosis se cancela")
+    c.sale.forEach(s => tit.push(`${s.tipo === "epo" ? s.cantidad + " jer. EPO" : "Fe"}: ${s.hacia ? "se recupera el " + fmtFecha(s.hacia) : "cancelada (se recupera al volver si cabe)"}`))
   } else {
     if (c.epo) txt += `<span class="ef-epo${c.epo > 1 ? " ef-epo2" : ""}">${_efUI(c.epo)}</span>`
     if (c.fe) txt += `<span class="ef-fe">Fe</span>`
     if (c.epo) tit.push(`EPO ${c.epo} jeringa(s) = ${_efUI(c.epo)} UI`)
     if (c.fe) tit.push("Hierro: 1 dosis")
   }
-  c.llega.forEach(l => tit.push(`Reprogramado desde ${fmtFecha(l.desde)} (${l.tipo === "epo" ? l.cantidad + " jer. EPO" : "Fe"})`))
+  c.llega.forEach(l => tit.push(`${l.motivo === "hosp" ? "Recuperado (hospitalización)" : "Reprogramado"} desde ${fmtFecha(l.desde)} (${l.tipo === "epo" ? l.cantidad + " jer. EPO" : "Fe"})`))
   if (c.manual) tit.push("Ajuste manual (el recálculo no lo cambia)")
   if (c.estado === "asistio") tit.push("Día cerrado: asistió")
   if (d.lab) tit.push("Día de laboratorio")
@@ -99,7 +103,7 @@ function _efPintar() {
     <div class="ef-cab print:hidden">
       <div>
         <h2 class="text-xl font-bold text-blue-900">EPO / Hierro del mes</h2>
-        <p class="text-slate-500 text-sm">1 jeringa de EPO = 4.000 UI · reparto parejo en las sesiones del paciente · sin dosis en días de laboratorio salvo que no quepan</p>
+        <p class="text-slate-500 text-sm">1 jeringa de EPO = 4.000 UI · máx. 2 por sesión (8.000 UI) · reparto parejo en las sesiones del paciente · sin dosis en días de laboratorio salvo que no quepan</p>
       </div>
       <div class="ef-acciones">
         <label class="text-sm font-semibold text-slate-600" for="ef-mes">Mes</label>
@@ -126,6 +130,7 @@ function _efPintar() {
       <span><span class="ef-epo">4.000</span> EPO 1 jeringa</span><span><span class="ef-epo ef-epo2">8.000</span> 2 jeringas</span>
       <span><span class="ef-fe">Fe</span> hierro</span><span><span class="ef-lab ef-muestra"></span> día de laboratorio</span>
       <span><span class="ef-na">NA</span> no asistió (dosis reprogramada)</span>
+      <span><span class="ef-na">H</span> hospitalizado (dosis cancelada; se recupera al volver)</span>
       <span><span class="ef-manual ef-muestra"></span> ajuste manual</span><span><span class="ef-llega ef-muestra"></span> recibe reprogramación</span>
       ${adm ? "<span>· Clic en una sesión para ajustarla</span>" : ""}
     </div>

@@ -184,8 +184,8 @@ def test_inasistencia_pasa_la_epo_a_la_siguiente_sesion_8000_ui(admin):
         _cerrar(admin, ses["id"])
         f = _fila(_grilla(admin), a["id"])
         assert f["celdas"]["2025-09-03"]["epo"] == 0 and f["celdas"]["2025-09-03"]["estado"] == "falto"
-        assert f["celdas"]["2025-09-03"]["sale"] == [{"tipo": "epo", "cantidad": 1, "hacia": "2025-09-05"}] \
-            or {"tipo": "epo", "cantidad": 1, "hacia": "2025-09-05"} in f["celdas"]["2025-09-03"]["sale"]
+        assert f["celdas"]["2025-09-03"]["sale"] == [
+            {"tipo": "epo", "cantidad": 1, "hacia": "2025-09-05", "motivo": "falta"}]
         c5 = f["celdas"]["2025-09-05"]
         assert c5["epo"] == 2 and c5["epo_ui"] == 8000 and c5["llega"][0]["desde"] == "2025-09-03"
         _, reg = registro_de(admin, "2025-09-05", "N", a["id"])
@@ -440,3 +440,78 @@ def test_generar_limita_la_epo_de_la_ficha(admin):
         assert f["epo_mes"] == 24 and f["epo_programada"] == 24
         assert max(x["epo"] for x in f["celdas"].values()) == 2
         assert any(x["accion"] == "limitar" for x in g["auditoria"])
+
+
+# ── Hospitalizado (H): la dosis se cancela y se recupera al volver ───────────
+
+def test_hospitalizado_cancela_y_al_volver_recupera_lo_que_quepa(admin):
+    # 13 jeringas en 13 sesiones LMV (con laboratorio el 10: 12 normales, una doble)
+    with pacientes(admin, ("T-R14-050", dict(LMV4, epo_mensual=52000.0, hierro_mensual=4))) as (a,):
+        _generar(admin)
+        f = _fila(_grilla(admin), a["id"])
+        h1 = "2025-09-03"
+        assert f["celdas"][h1]["epo"] >= 1
+        fe_h = _con_fe(f)[0] if _con_fe(f)[0] < "2025-09-08" else None
+        # hospitalizado el 3 y el 5 (hojas cerradas con H): nada pasa a la sesión siguiente
+        for dia in ("2025-09-03", "2025-09-05"):
+            ses, _ = marcar(admin, dia, "N", a["id"], asistencia="H")
+            _cerrar(admin, ses["id"])
+        f = _fila(_grilla(admin), a["id"])
+        for dia in ("2025-09-03", "2025-09-05"):
+            c = f["celdas"][dia]
+            assert c["estado"] == "hosp" and c["epo"] == 0 and c["fe"] == 0
+            assert all(x["hacia"] is None and x["motivo"] == "hosp" for x in c["sale"])
+        assert f["celdas"]["2025-09-08"]["llega"] == []                    # NO se arrastra
+        assert any("Hospitalizado" in x for x in f["avisos"])
+        g = _grilla(admin)
+        assert any(x["accion"] == "cancelar" for x in g["auditoria"])
+        cancel_epo = sum(x["cantidad"] for d in ("2025-09-03", "2025-09-05")
+                         for x in f["celdas"][d]["sale"] if x["tipo"] == "epo")
+        assert cancel_epo >= 2
+        # vuelve el lunes 8: lo cancelado se reparte en las sesiones abiertas que quedan
+        ses, _ = marcar(admin, "2025-09-08", "N", a["id"], asistencia="A")
+        _cerrar(admin, ses["id"])
+        f = _fila(_grilla(admin), a["id"])
+        recuperado = [l for c in f["celdas"].values() for l in c["llega"] if l["motivo"] == "hosp"]
+        assert sum(l["cantidad"] for l in recuperado if l["tipo"] == "epo") == cancel_epo
+        assert all(d > "2025-09-08" for d, c in f["celdas"].items() for l in c["llega"] if l["motivo"] == "hosp")
+        assert max(x["epo"] for x in f["celdas"].values()) <= 2               # tope 8.000 UI
+        assert all(x["fe"] <= 1 for x in f["celdas"].values())
+        assert not f["celdas"].get("2025-09-10", {}).get("epo")              # laboratorio evitado
+        assert sum(x["epo"] for x in f["celdas"].values()) == 13            # se recupera todo
+        if fe_h:
+            assert len(_con_fe(f)) == 4
+        assert any(x["accion"] == "recuperar" for x in _grilla(admin)["auditoria"])
+        assert not any("Hospitalizado" in x for x in f["avisos"])
+        # idempotente
+        assert admin.post(f"/api/epo-fe/{MES}/recalcular").json()["reprogramadas"] == 0
+        assert _fila(_grilla(admin), a["id"])["celdas"] == f["celdas"]
+
+
+def test_hospitalizado_al_final_del_mes_no_cabe_y_se_avisa(admin):
+    with pacientes(admin, ("T-R14-051", dict(LMV4, epo_mensual=96000.0, hierro_mensual=0))) as (a,):   # 24
+        _generar(admin)
+        for dia in ("2025-09-22", "2025-09-24"):
+            ses, _ = marcar(admin, dia, "N", a["id"], asistencia="H")
+            _cerrar(admin, ses["id"])
+        ses, _ = marcar(admin, "2025-09-26", "N", a["id"], asistencia="A")
+        _cerrar(admin, ses["id"])
+        f = _fila(_grilla(admin), a["id"])
+        assert f["celdas"]["2025-09-29"]["epo"] == 2                       # ya estaba lleno: no cabe nada
+        assert any("No se pudo recuperar" in x for x in f["avisos"])
+
+
+def test_hospitalizado_distinto_de_falta(admin):
+    """NA arrastra a la siguiente sesión; H cancela (y corregir H → NA lo arrastra)."""
+    with pacientes(admin, ("T-R14-052", dict(LMV4, epo_mensual=52000.0))) as (a,):
+        _generar(admin)
+        ses, _ = marcar(admin, "2025-09-03", "N", a["id"], asistencia="H")
+        _cerrar(admin, ses["id"])
+        assert _fila(_grilla(admin), a["id"])["celdas"]["2025-09-05"]["epo"] == 1
+        assert admin.post(f"/api/cierre/{ses['id']}/reabrir").status_code == 200
+        marcar(admin, "2025-09-03", "N", a["id"], asistencia="NA")
+        _cerrar(admin, ses["id"])
+        f = _fila(_grilla(admin), a["id"])
+        assert f["celdas"]["2025-09-03"]["estado"] == "falto" and f["celdas"]["2025-09-05"]["epo"] == 2
+        assert f["celdas"]["2025-09-03"]["sale"][0]["motivo"] == "falta"
+        assert admin.get(f"/api/epo-fe/{MES}/csv").content.decode("utf-8-sig").count("NA") >= 1

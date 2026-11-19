@@ -382,7 +382,8 @@ class EpoFeCelda(Base):
 
 
 class EpoFeMovimiento(Base):
-    """Reprogramación por inasistencia: la dosis de ``fecha_origen`` pasa a ``fecha_destino``.
+    """Reprogramación por inasistencia: la dosis de ``fecha_origen`` pasa a ``fecha_destino``
+    (varias filas por día si la EPO no cabe en una sola sesión: tope 2 jeringas).
 
     ``fecha_destino`` NULL = no quedó ninguna sesión del mes donde ponerla (pendiente).
     ``activo`` falso = se revirtió (p. ej. se corrigió la asistencia y sí vino).
@@ -397,6 +398,9 @@ class EpoFeMovimiento(Base):
     fecha_destino = Column(String(10))
     cantidad = Column(Integer, nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
+    # «falta» (NULL en filas antiguas): se arrastra a la sesión siguiente.
+    # «hosp»: hospitalizado (H): se cancela y se recupera al volver (destino NULL = aún no).
+    motivo = Column(String(10))
     creado_por = Column(String(80))
     creado_en = Column(DateTime)
     actualizado_en = Column(DateTime)
