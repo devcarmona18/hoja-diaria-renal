@@ -30,7 +30,9 @@ DATABASE_URL = normalizar_database_url(os.getenv("DATABASE_URL") or "sqlite:///.
 DEMO_MODE = _bool("DEMO_MODE")
 # Demo: asignar días LMV/MJS y EPO/Fe del mes (con días, cada sesión trae solo la mitad de los
 # pacientes del turno). Los tests lo apagan para conservar los 48 por turno.
-DEMO_EPO_FE = _bool("DEMO_EPO_FE", True)
+# Solo para despliegues de demostración con datos ficticios: asigna días y dosis
+# de ejemplo si ningún paciente tiene días. Apagado por defecto para no tocar datos reales.
+DEMO_EPO_FE = _bool("DEMO_EPO_FE", False)
 
 # Login. Si APP_USER/APP_PASSWORD no están definidos, el login se desactiva (solo para desarrollo local).
 APP_USER = os.getenv("APP_USER", "")
