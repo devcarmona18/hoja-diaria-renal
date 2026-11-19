@@ -43,7 +43,7 @@ En muchas unidades renales el control diario se lleva en planillas impresas o en
 - **Laboratorios:** registro por paciente (Hb, PTH, ferritina, creatinina…) con gráficas de evolución (Chart.js) y panel con semáforo de colores por rango.
 - **Historial y estadísticas** de asistencia por paciente y por mes.
 - **Acceso con login:** usuario administrador (lectura y escritura) y acceso **demo de solo lectura** para visitantes.
-- **Consulta clínica con IA (opcional):** preguntas en lenguaje natural sobre el historial de un paciente usando la API de Claude (Anthropic). Solo aparece si el servidor tiene `ANTHROPIC_API_KEY`. Es una herramienta de apoyo informativo: no diagnostica ni prescribe.
+- **IA · NefroIA (opcional):** el asistente de IA para enfermería renal [NefroIA](https://github.com/devcarmona18/nefroia) integrado en el apartado «IA», con inicio de sesión único (token firmado de un solo uso, vida ≤ 2 min) y alternativa «Abrir en pestaña nueva». Hoja Diaria **no envía datos de pacientes**: solo la identidad del usuario. Sin `NEFROIA_URL` y `NEFROIA_SSO_SECRET` el apartado muestra «NefroIA no está configurado todavía». Detalles en [`docs/integracion-nefroia.md`](docs/integracion-nefroia.md).
 
 ## Próximamente: integración HL7
 
@@ -128,7 +128,7 @@ uvicorn main:app --reload --port 8000
 
 Abre **http://localhost:8000**. La documentación de la API está en **/docs**.
 
-Sin archivo `.env` la app usa SQLite y **no pide login** (cómodo para desarrollar). Para probar el login, la demo o la IA, copia `.env.example` como `.env` y completa los valores:
+Sin archivo `.env` la app usa SQLite y **no pide login** (cómodo para desarrollar). Para probar el login, la demo o NefroIA, copia `.env.example` como `.env` y completa los valores:
 
 | Variable | Para qué sirve | Por defecto |
 |---|---|---|
@@ -137,7 +137,8 @@ Sin archivo `.env` la app usa SQLite y **no pide login** (cómodo para desarroll
 | `APP_USER` / `APP_PASSWORD` | Credenciales del administrador. Vacías = login desactivado | — |
 | `SECRET_KEY` | Firma de la cookie de sesión | valor de desarrollo |
 | `COOKIE_SECURE` | `true` en producción (HTTPS) | `false` |
-| `ANTHROPIC_API_KEY` | Activa el módulo de IA | — |
+| `NEFROIA_URL` | URL pública de NefroIA (p. ej. `https://nefroia.onrender.com`). Vacía = apartado «IA» apagado | — |
+| `NEFROIA_SSO_SECRET` | Secreto compartido con NefroIA para firmar el token de acceso (≥ 32 caracteres, el mismo valor en ambos servicios) | — |
 | `ARCHIVO_DIAS` | Días que un paciente archivado aparece en «Archivados» y es restaurable (nada clínico se borra); pasado el plazo se puede reactivar por cédula | `180` (6 meses) |
 | `TEAMS_ENABLED` | Notificaciones de laboratorio a Teams (webhook por médico). `false` = ninguna llamada saliente | `false` |
 | `TEAMS_DIAS` / `TEAMS_JOB_TOKEN` | Días del mes de envío · token del trabajo programado de GitHub Actions | `1,15` / — |
@@ -156,7 +157,7 @@ El despliegue está descrito como código en [`render.yaml`](render.yaml).
 
 1. **Base de datos:** crea un proyecto gratuito en [Neon](https://neon.tech) y copia la *connection string* (`postgresql://…?sslmode=require`).
 2. **Render:** en [dashboard.render.com](https://dashboard.render.com) elige **New → Blueprint**, conecta este repositorio y Render leerá `render.yaml`.
-3. **Variables:** Render pedirá los valores marcados como secretos: `DATABASE_URL` (de Neon), `APP_USER`, `APP_PASSWORD` y, opcionalmente, `ANTHROPIC_API_KEY`. `SECRET_KEY` se genera solo.
+3. **Variables:** Render pedirá los valores marcados como secretos: `DATABASE_URL` (de Neon), `APP_USER`, `APP_PASSWORD` y, opcionalmente, `NEFROIA_URL` y `NEFROIA_SSO_SECRET` (apartado «IA», ver [`docs/integracion-nefroia.md`](docs/integracion-nefroia.md)). `SECRET_KEY` se genera solo.
 4. Render construye la imagen Docker, arranca con `uvicorn main:app --host 0.0.0.0 --port $PORT` y comprueba `/health`. En el primer arranque, `DEMO_MODE=true` carga los pacientes ficticios.
 
 A partir de ahí, **cada push a `main` se despliega solo**.
