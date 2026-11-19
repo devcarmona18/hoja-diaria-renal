@@ -22,7 +22,8 @@ router = APIRouter()
 
 METODOS_LECTURA = {"GET", "HEAD", "OPTIONS"}
 RUTAS_PUBLICAS = ("/health", "/login", "/static/", "/api/auth/", "/favicon.ico",
-                  "/api/hl7/mensajes")  # HL7: el puente se autentica con firma HMAC, no con cookie
+                  "/api/hl7/mensajes",  # HL7: el puente se autentica con firma HMAC, no con cookie
+                  "/api/labs/notificaciones/enviar")  # R13: token del trabajo programado O admin (lo valida la ruta)
 
 # Freno simple contra fuerza bruta: máx. 10 intentos fallidos por IP cada 15 min.
 _MAX_FALLOS, _VENTANA = 10, 15 * 60
@@ -55,6 +56,23 @@ async def middleware_auth(request: Request, call_next):
         )
 
     return await call_next(request)
+
+
+def usuario_actual(request: Request) -> str:
+    """Nombre del usuario para la auditoría («local» si el login está desactivado)."""
+    if not config.AUTH_ENABLED:
+        return "local"
+    return request.session.get("usuario") or "admin"
+
+
+def requerir_admin(request: Request) -> str:
+    """401 sin sesión, 403 si no es admin (p. ej. demo). Devuelve el usuario."""
+    rol = rol_actual(request)
+    if rol is None:
+        raise HTTPException(401, "No autenticado")
+    if rol != "admin":
+        raise HTTPException(403, "Solo el administrador puede hacer esto")
+    return usuario_actual(request)
 
 
 class LoginInput(BaseModel):
@@ -115,5 +133,5 @@ def me(request: Request):
         "usuario": request.session.get("usuario") if config.AUTH_ENABLED else None,
         "auth_enabled": config.AUTH_ENABLED,
         "demo_mode": config.DEMO_MODE,
-        "ia_enabled": config.IA_ENABLED,
+        "nefroia_configurado": config.NEFROIA_ENABLED,  # R9
     }

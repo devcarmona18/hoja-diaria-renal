@@ -40,38 +40,31 @@ function _hl7MontarBurbuja() {
   document.body.appendChild(cont)
   document.getElementById("hl7-burbuja").addEventListener("click", hl7AbrirProximamente)
 
-  // Fuera del inicio la burbuja se reduce a un ícono para no tapar la hoja.
-  const compactar = () => cont.classList.toggle("hl7-compacta", typeof G !== "undefined" && G.vista !== "dashboard")
+  // R8: la burbuja se ve SOLO en la pantalla de inicio; en el resto de la app
+  // «Próximamente» se abre desde la sección del menú (renderProximamente).
+  const compactar = () => {
+    const enInicio = typeof G !== "undefined" && G.vista === "dashboard"
+    cont.hidden = !enInicio
+    if (!enInicio) hl7CerrarProximamente()
+  }
   const raiz = document.getElementById("app")
   if (raiz) new MutationObserver(compactar).observe(raiz, { childList: true })
   compactar()
 }
 
-function _hl7MontarModal() {
-  if (document.getElementById("hl7-modal")) return
-  const ov = document.createElement("div")
-  ov.id = "hl7-modal"
-  ov.className = "hl7-overlay"
-  ov.hidden = true
-  ov.innerHTML = `
-    <div class="hl7-modal" role="dialog" aria-modal="true" aria-labelledby="hl7-modal-titulo" aria-describedby="hl7-modal-desc">
-      <div class="hl7-modal-cab">
-        <div>
-          <span class="hl7-etiqueta">Próximamente</span>
-          <h2 id="hl7-modal-titulo" class="hl7-titulo">Integración con máquinas AK 98</h2>
-        </div>
-        <button type="button" class="hl7-cerrar" data-hl7-cerrar aria-label="Cerrar">&times;</button>
-      </div>
+/** Contenido «Próximamente» (video + pasos). Lo comparten el panel de la burbuja y la sección del menú. */
+function _hl7CuerpoHTML(pfx) {
+  return `
       <div class="hl7-cuerpo">
         <div class="hl7-media">
-          <video id="hl7-video" controls muted loop playsinline preload="none" poster="${HL7_POSTER}"
+          <video id="${pfx}-video" data-hl7-video controls muted loop playsinline preload="none" poster="${HL7_POSTER}"
             aria-label="Video ilustrativo: la máquina envía los datos y la hoja se llena sola"></video>
-          <img id="hl7-poster" src="${HL7_POSTER}" alt="Ilustración de la integración con las máquinas AK 98" hidden>
-          <div id="hl7-ilustracion" class="hl7-ilustracion" hidden aria-hidden="true">
+          <img id="${pfx}-poster" data-hl7-poster src="${HL7_POSTER}" alt="Ilustración de la integración con las máquinas AK 98" hidden>
+          <div id="${pfx}-ilustracion" data-hl7-ilustracion class="hl7-ilustracion" hidden aria-hidden="true">
             <span>AK 98</span><span>→</span><span>Hoja diaria</span><span>→</span><span>✓ Confirmar</span>
           </div>
         </div>
-        <p id="hl7-modal-desc" class="mb-3">
+        <p id="${pfx}-desc" class="mb-3">
           Estamos preparando la conexión directa con las máquinas de hemodiálisis de la unidad para que
           los datos de cada sesión lleguen solos a la hoja diaria, sin transcribir.
         </p>
@@ -87,6 +80,25 @@ function _hl7MontarModal() {
         </ol>
         <p class="hl7-nota" role="note">${HL7_NOTA}</p>
       </div>
+  `
+}
+
+function _hl7MontarModal() {
+  if (document.getElementById("hl7-modal")) return
+  const ov = document.createElement("div")
+  ov.id = "hl7-modal"
+  ov.className = "hl7-overlay"
+  ov.hidden = true
+  ov.innerHTML = `
+    <div class="hl7-modal" role="dialog" aria-modal="true" aria-labelledby="hl7-modal-titulo" aria-describedby="hl7-desc">
+      <div class="hl7-modal-cab">
+        <div>
+          <span class="hl7-etiqueta">Próximamente</span>
+          <h2 id="hl7-modal-titulo" class="hl7-titulo">Integración con máquinas AK 98</h2>
+        </div>
+        <button type="button" class="hl7-cerrar" data-hl7-cerrar aria-label="Cerrar">&times;</button>
+      </div>
+      ${_hl7CuerpoHTML("hl7")}
       <div class="hl7-pie">
         <button type="button" class="hl7-btn" data-hl7-cerrar>Entendido</button>
       </div>
@@ -169,6 +181,40 @@ function hl7CerrarProximamente() {
   ov.hidden = true
   document.getElementById("hl7-burbuja")?.setAttribute("aria-expanded", "false")
   if (_hl7FocoPrevio && _hl7FocoPrevio.focus) _hl7FocoPrevio.focus()
+}
+
+// ── Sección «Próximamente» del menú (R8): mismo contenido que la burbuja ─────
+function renderProximamente() {
+  G.sesion = null; G.registros = []
+  G.vista = "proximamente"
+  updateHeader()
+  hl7CerrarProximamente()
+  app().innerHTML = `
+    <div class="max-w-3xl mx-auto">
+      <div class="bg-white rounded-2xl shadow-xl p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <span class="hl7-etiqueta">Próximamente</span>
+            <h2 class="text-xl font-bold text-blue-900">Integración con máquinas AK 98</h2>
+          </div>
+          <button onclick="goHome()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg font-medium">← Inicio</button>
+        </div>
+        ${_hl7CuerpoHTML("hl7v")}
+      </div>
+    </div>`
+  const video = document.getElementById("hl7v-video")
+  const poster = document.getElementById("hl7v-poster")
+  const ilus = document.getElementById("hl7v-ilustracion")
+  let posterFallo = false
+  const sinVideo = () => { video.pause?.(); video.hidden = true; poster.hidden = posterFallo; ilus.hidden = !posterFallo }
+  poster.addEventListener("error", () => { posterFallo = true; if (video.hidden) sinVideo() })
+  video.addEventListener("error", sinVideo, true)
+  const src = document.createElement("source")
+  src.src = HL7_VIDEO
+  src.type = "video/mp4"
+  src.addEventListener("error", sinVideo)
+  video.appendChild(src)
+  video.load()
 }
 
 // ── Bandeja de la máquina (solo con HL7 habilitado) ─────────────────────────

@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from collections import defaultdict
+import auth
 import models
 from database import get_db
+from services import asistencia as srv_asis
 
 router = APIRouter()
 
@@ -86,3 +90,68 @@ def estadisticas_paciente(
         "fallecidos": sum(1 for r in registros if r.asistencia == "F"),
         "sin_marcar": sum(1 for r in registros if not r.asistencia),
     }
+
+
+# ── R12: asistencia mensual (facturación) ────────────────────────────────────
+# Regla de cálculo: ver services/asistencia.py (docstring) y docs/requerimientos-diciembre.md.
+
+def _regla(e: srv_asis.ReglaError):
+    return HTTPException(e.status, str(e))
+
+
+@router.get("/asistencia/{anio}/{mes}")
+def asistencia_mes(anio: int, mes: int, db: Session = Depends(get_db)):
+    """Asistidas / programadas por paciente de CUALQUIER mes. Mes cerrado = registro guardado (inmutable)."""
+    try:
+        return srv_asis.resumen_mes(db, f"{anio:04d}-{mes:02d}")
+    except srv_asis.ReglaError as e:
+        raise _regla(e)
+
+
+@router.get("/asistencia/{anio}/{mes}/csv")
+def asistencia_mes_csv(anio: int, mes: int, db: Session = Depends(get_db)):
+    try:
+        resumen = srv_asis.resumen_mes(db, f"{anio:04d}-{mes:02d}")
+    except srv_asis.ReglaError as e:
+        raise _regla(e)
+    cuerpo = "\ufeff" + srv_asis.a_csv(resumen)      # BOM: Excel abre bien las tildes
+    return Response(cuerpo, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="asistencia-{resumen["mes"]}.csv"'})
+
+
+class CerrarIn(BaseModel):
+    forzar: bool = False      # permitir cerrar el mes en curso
+
+
+class ReabrirIn(BaseModel):
+    motivo: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/asistencia/{anio}/{mes}/cerrar")
+def cerrar_mes(anio: int, mes: int, request: Request, data: CerrarIn = Body(default_factory=CerrarIn),
+               db: Session = Depends(get_db)):
+    usuario = auth.requerir_admin(request)
+    try:
+        srv_asis.cerrar_mes(db, f"{anio:04d}-{mes:02d}", usuario, forzar=data.forzar)
+        return srv_asis.resumen_mes(db, f"{anio:04d}-{mes:02d}")
+    except srv_asis.ReglaError as e:
+        raise _regla(e)
+
+
+@router.post("/asistencia/{anio}/{mes}/reabrir")
+def reabrir_mes(anio: int, mes: int, data: ReabrirIn, request: Request, db: Session = Depends(get_db)):
+    usuario = auth.requerir_admin(request)
+    try:
+        srv_asis.reabrir_mes(db, f"{anio:04d}-{mes:02d}", usuario, data.motivo)
+        return srv_asis.resumen_mes(db, f"{anio:04d}-{mes:02d}")
+    except srv_asis.ReglaError as e:
+        raise _regla(e)
+
+
+@router.get("/asistencia/{anio}/{mes}/auditoria")
+def auditoria_mes(anio: int, mes: int, db: Session = Depends(get_db)):
+    mes_s = f"{anio:04d}-{mes:02d}"
+    filas = (db.query(models.AuditoriaCierreMes).filter_by(mes=mes_s)
+             .order_by(models.AuditoriaCierreMes.id.desc()).all())
+    return [{"accion": a.accion, "usuario": a.usuario, "motivo": a.motivo or "",
+             "fecha": a.creado_en.isoformat(timespec="seconds") + "Z"} for a in filas]

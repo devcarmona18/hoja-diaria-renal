@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="/static/vendor/tailwind.css" />
   <script src="/static/vendor/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/epo_fe.css" />  <!-- R14 -->
   <link rel="stylesheet" href="/static/css/hl7.css" />
+  <link rel="stylesheet" href="/static/css/programacion.css" />
+  <link rel="stylesheet" href="/static/css/insumos.css" />
+  <link rel="stylesheet" href="/static/css/nefroia.css" />
   <link rel="icon" href="data:," />
 </head>
 <body class="bg-slate-100 min-h-screen font-sans text-slate-800">
@@ -27,6 +31,7 @@
         <span class="mx-1">·</span>
         <span id="header-turno" class="font-semibold"></span>
         <span id="header-cerrada" class="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded hidden">CERRADA</span>
+        <span id="header-mes-cerrado" class="ml-2 badge-mes-cerrado hidden" title="El mes está cerrado; reábralo para editar"><span aria-hidden="true">🔒</span> Mes cerrado</span>
       </div>
       <div id="header-save" class="ml-4 text-xs text-blue-300 hidden">
         <span class="save-dot"></span>
@@ -76,10 +81,15 @@
   <!-- Scripts: orden importa — app.js primero (define G, helpers) -->
   <script src="/static/js/app.js"></script>
   <script src="/static/js/crud.js"></script>
+  <script src="/static/js/programacion.js"></script>  <!-- R2/R7: programar próxima -->
+  <script src="/static/js/epo_fe.js"></script>        <!-- R14: EPO / hierro del mes -->
   <script src="/static/js/historial.js"></script>
   <script src="/static/js/laboratorios.js"></script>
   <script src="/static/js/estadisticas.js"></script>
-  <script src="/static/js/ia.js"></script>
+  <script src="/static/js/labs_config.js"></script>  <!-- R13: rangos y Teams -->
+  <script src="/static/js/archivo.js"></script>      <!-- R13: pacientes archivados -->
+  <script src="/static/js/nefroia.js"></script>  <!-- R9: apartado «IA» (NefroIA) -->
+  <script src="/static/js/insumos.js"></script>  <!-- R5/R6: pedido de insumos -->
   <script src="/static/js/hl7.js"></script>  <!-- Integración AK 98 «Próximamente» -->
 </body>
 </html>

@@ -15,7 +15,7 @@ let G = {
   vista:      "dashboard",
   saveTimers: {},
   pendientes: new Set(),
-  me:         {},      // /api/auth/me → rol, demo_mode, ia_enabled…
+  me:         {},      // /api/auth/me → rol, demo_mode, nefroia_configurado…
   readonly:   false,   // true para el usuario demo (solo lectura)
 }
 
@@ -43,32 +43,63 @@ function clsPerdida(perdida, ganancia) {
   return "perdida-ok"
 }
 
-/** Badge HTML de tipo de acceso vascular */
-function accesoHTML(p) {
-  if (!p || !p.acceso) return ""
-  const cm = p.acceso_cm || 15
-  const map = {
-    CY:      `<span class="badge-acceso badge-cy">CY</span>`,
-    FAV_L:   `<span class="badge-acceso badge-fav">FAV</span>`,
-    FAV_AR:  `<span class="badge-acceso badge-fav-ar">FAV ⚠</span>`,
-    FAV_ANE: `<span class="badge-acceso badge-fav-ane">⚠ ${cm}cm</span>`,
-    F16:     `<span class="badge-acceso badge-fav">G16</span>`,
-    F17:     `<span class="badge-acceso badge-fav">G17</span>`,
-  }
-  return map[p.acceso] || ""
+/** Escapa texto para insertarlo en HTML */
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
 }
 
-/** Subtítulo informativo: filtro + dosis heparina calculada + watson */
-function pacSubtxt(p) {
-  if (!p) return ""
-  const parts = []
-  if (p.tipo_filtro) parts.push(p.tipo_filtro)
-  if (p.heparina_unidades && p.peso_seco) {
-    const dosis = Math.round(p.peso_seco * 4 * p.heparina_unidades)
-    parts.push(`Hep: ${dosis} UI (${p.heparina_unidades} UI/h)`)
+const ACCESO_ESTADOS = { limpia: "limpia", alto_riesgo: "alto riesgo", aneurismatica: "aneurismática" }
+
+/** Texto legible del acceso: "FAV limpia, aguja calibre 16" · "Catéter (CY) yugular" */
+function accesoTexto(p) {
+  if (!p || !p.acceso) return "—"
+  if (p.acceso === "FAV") {
+    let t = "FAV" + (p.acceso_estado ? " " + (ACCESO_ESTADOS[p.acceso_estado] || p.acceso_estado) : "")
+    if (p.acceso_estado === "aneurismatica" && p.acceso_cm) t += ` (${p.acceso_cm} cm)`
+    if (p.acceso_calibre) t += `, aguja calibre ${p.acceso_calibre}`
+    return t
   }
-  if (p.watson) parts.push(`V=${p.watson.toFixed(1)} L`)
-  return parts.join(" · ")
+  if (p.acceso === "CY") return "Catéter (CY)" + (p.acceso_sitio ? " " + p.acceso_sitio : "")
+  return p.acceso
+}
+
+/** Badge HTML de tipo de acceso vascular (R1: FAV con estado y calibre · CY yugular/femoral) */
+function accesoHTML(p) {
+  if (!p || !p.acceso) return ""
+  const tit = escHtml(accesoTexto(p))
+  let cls, txt
+  if (p.acceso === "CY") {
+    cls = "badge-cy"
+    txt = "CY" + (p.acceso_sitio === "yugular" ? " yug." : p.acceso_sitio === "femoral" ? " fem." : "")
+  } else if (p.acceso === "FAV") {
+    const est = p.acceso_estado
+    cls = est === "alto_riesgo" ? "badge-fav-ar" : est === "aneurismatica" ? "badge-fav-ane" : "badge-fav"
+    txt = est === "aneurismatica" ? `⚠ FAV${p.acceso_cm ? " " + p.acceso_cm + "cm" : ""}`
+        : est === "alto_riesgo"   ? "FAV ⚠" : "FAV"
+    if (p.acceso_calibre) txt += ` ${p.acceso_calibre}G`
+  } else return ""
+  return `<span class="badge-acceso ${cls}" title="${tit}" aria-label="Acceso vascular: ${tit}">${escHtml(txt)}</span>`
+}
+
+/** R4: datos del paciente visibles en la fila: filtro, heparina, cédula, UI (+ Watson) */
+function pacInfoHTML(p) {
+  if (!p) return ""
+  const chips = []
+  const chip = (txt, titulo) => chips.push(`<span class="pac-chip" title="${escHtml(titulo)}">${escHtml(txt)}</span>`)
+  if (p.tipo_filtro) chip(`Filtro ${p.tipo_filtro}`, `Filtro: ${p.tipo_filtro}`)
+  if (p.heparina_ui_kg != null) {
+    // R4: heparina en UI/kg; el total es un cálculo (UI/kg × peso seco)
+    const total = p.peso_seco ? Math.round(p.heparina_ui_kg * p.peso_seco) : null
+    chip(`Hep ${p.heparina_ui_kg} UI/kg` + (total ? ` ≈ ${total} UI` : ""),
+         `Heparina: ${p.heparina_ui_kg} UI/kg` + (total ? ` · ≈ total ${total} UI (cálculo: UI/kg × peso seco ${p.peso_seco} kg)` : ""))
+  } else if (p.heparina_unidades) {
+    const dosis = p.peso_seco ? Math.round(p.peso_seco * 4 * p.heparina_unidades) : null
+    chip(dosis ? `Hep ${dosis} UI` : `Hep ${p.heparina_unidades} UI/h`,
+         `Heparina: ${p.heparina_unidades} UI/h` + (dosis ? ` · dosis total ${dosis} UI (peso seco × 4 h × UI/h)` : ""))
+  }
+  if (p.cedula) chip(`CC ${p.cedula}`, `Cédula: ${p.cedula}`)
+  if (p.watson) chip(`V ${p.watson.toFixed(1)} L`, `Volumen de Watson: ${p.watson.toFixed(1)} L`)
+  return chips.length ? `<span class="pac-chips">${chips.join("")}</span>` : ""
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -88,7 +119,11 @@ async function _apiCheck(r) {
   if (r.status === 401) { location.href = "/login"; throw new Error("Sesión expirada") }
   if (!r.ok && r.status !== 204) {
     const e = await r.json().catch(() => ({}))
-    throw new Error(e.detail || r.statusText)
+    // detail puede ser texto o un objeto {mensaje, codigo, …} (p. ej. cédula de un archivado)
+    const d = e.detail
+    const msg = typeof d === "string" ? d : (d && d.mensaje) || (Array.isArray(d) ? d.map(x => x.msg).join("; ") : "") || r.statusText
+    const err = new Error(msg); err.status = r.status; err.detalle = d
+    throw err
   }
   return r
 }
@@ -100,13 +135,18 @@ async function apiPut(path, body)    { return (await _apiCheck(await fetch(path,
 async function apiDelete(path)       { await _apiCheck(await fetch(path, { method: "DELETE" })) }
 
 // ── Modal global ──────────────────────────────────────────────────────────────
-function openModal(title, bodyHTML, footerHTML) {
+function openModal(title, bodyHTML, footerHTML, opts = {}) {
+  document.querySelector("#modal-overlay .modal-box")?.classList.toggle("modal-ancho", !!opts.ancho)
   $("modal-title").innerHTML = title
   $("modal-body").innerHTML  = bodyHTML
   $("modal-footer").innerHTML = footerHTML
   $("modal-overlay").classList.remove("hidden")
 }
 function closeModal() { $("modal-overlay").classList.add("hidden") }
+
+// R12: con el mes cerrado la hoja es de solo lectura (el servidor responde 409)
+function hojaBloqueada() { return !!(G.sesion && (G.sesion.cerrada || G.sesion.mes_cerrado)) || G.readonly }
+const AVISO_MES_CERRADO = "El mes está cerrado; reábralo para editar"
 
 // ── Header ────────────────────────────────────────────────────────────────────
 function updateHeader() {
@@ -123,8 +163,30 @@ function updateHeader() {
     $("header-fecha").textContent = fmtFecha(G.sesion.fecha)
     $("header-turno").textContent = TURNOS[G.sesion.turno]
     $("header-cerrada").classList.toggle("hidden", !G.sesion.cerrada)
+    $("header-mes-cerrado")?.classList.toggle("hidden", !G.sesion.mes_cerrado)   // R12
   }
 }
+
+// Menú de la pantalla de inicio. R8: «Próximamente» siempre en la ÚLTIMA posición.
+const MENU_INICIO = [
+  { id: "pacientes",     accion: "renderCRUD()",          icono: "👥", titulo: "Pacientes",         sub: "CRUD · acceso · heparina · filtro",
+    hover: "hover:bg-amber-50",   borde: "border-amber-200",   texto: "text-amber-800" },
+  { id: "historial",     accion: "renderHistorial()",     icono: "📊", titulo: "Historial",         sub: "Por fecha / mes",
+    hover: "hover:bg-blue-50",    borde: "border-blue-200",    texto: "text-blue-800" },
+  { id: "estadisticas",  accion: "renderEstadisticas()",  icono: "📈", titulo: "Estadísticas",      sub: "Sesiones por paciente / mes",
+    hover: "hover:bg-emerald-50", borde: "border-emerald-200", texto: "text-emerald-800" },
+  { id: "labs",          accion: "renderLabPanel()",      icono: "🔬", titulo: "Panel Labs (F5)",   sub: "Hb, PTH, Ferritina… por color",
+    hover: "hover:bg-purple-50",  borde: "border-purple-200",  texto: "text-purple-800" },
+  { id: "epo",           accion: "renderAutoProgram()",   icono: "💊", titulo: "EPO / Fe del mes",  sub: "Auto-programación mensual",
+    hover: "hover:bg-teal-50",    borde: "border-teal-200",    texto: "text-teal-800" },
+  // R9: NefroIA (asistente de IA) tras las secciones clínicas, antes del pedido de insumos; no envía datos de pacientes.
+  { id: "ia",            accion: "renderIA()",            icono: "🤖", titulo: "IA · NefroIA",      sub: "Asistente de enfermería renal",
+    hover: "hover:bg-indigo-50",  borde: "border-indigo-200",  texto: "text-indigo-800" },
+  { id: "insumos",       accion: "renderInsumos()",       icono: "📦", titulo: "Pedido de insumos", sub: "Para el próximo día · adicionales · devoluciones",
+    hover: "menu-insumos",        borde: "border-orange-200",  texto: "text-orange-700" },
+  { id: "proximamente",  accion: "renderProximamente()",  icono: "🚀", titulo: "Próximamente",      sub: "Integración con las máquinas AK 98",
+    hover: "hover:bg-slate-50",   borde: "border-slate-200",   texto: "text-slate-800" },
+]
 
 // ── VIEW: DASHBOARD ───────────────────────────────────────────────────────────
 function goHome() {
@@ -177,45 +239,16 @@ function renderDashboard() {
         <div id="dash-error" class="text-red-600 text-sm text-center mt-3 hidden"></div>
       </div>
 
-      <!-- Accesos rápidos -->
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="renderCRUD()"
-          class="bg-white hover:bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">👥</div>
-          <div class="font-semibold text-sm">Pacientes</div>
-          <div class="text-xs text-slate-400 mt-0.5">CRUD · acceso · heparina · filtro</div>
-        </button>
-        <button onclick="renderHistorial()"
-          class="bg-white hover:bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">📊</div>
-          <div class="font-semibold text-sm">Historial</div>
-          <div class="text-xs text-slate-400 mt-0.5">Por fecha / mes</div>
-        </button>
-        <button onclick="renderEstadisticas()"
-          class="bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">📈</div>
-          <div class="font-semibold text-sm">Estadísticas</div>
-          <div class="text-xs text-slate-400 mt-0.5">Sesiones por paciente / mes</div>
-        </button>
-        <button onclick="renderLabPanel()"
-          class="bg-white hover:bg-purple-50 border border-purple-200 text-purple-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">🔬</div>
-          <div class="font-semibold text-sm">Panel Labs (F5)</div>
-          <div class="text-xs text-slate-400 mt-0.5">Hb, PTH, Ferritina… por color</div>
-        </button>
-        <button onclick="renderAutoProgram()"
-          class="bg-white hover:bg-teal-50 border border-teal-200 text-teal-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">💊</div>
-          <div class="font-semibold text-sm">EPO / Fe del mes</div>
-          <div class="text-xs text-slate-400 mt-0.5">Auto-programación mensual</div>
-        </button>
-        <button onclick="renderIA(null, null)"
-          class="solo-ia solo-admin bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-4 text-left shadow-sm">
-          <div class="text-xl mb-1">🤖</div>
-          <div class="font-semibold text-sm">IA Clínica (F4)</div>
-          <div class="text-xs text-slate-400 mt-0.5">Consulta sobre historial del paciente</div>
-        </button>
-      </div>
+      <!-- Accesos rápidos (menú). El orden lo define MENU_INICIO; «Próximamente» va SIEMPRE al final. -->
+      <nav aria-label="Secciones" class="grid grid-cols-2 gap-3" id="menu-inicio">
+        ${MENU_INICIO.map(m => `
+        <button onclick="${m.accion}" data-menu="${m.id}"
+          class="${m.extra ? m.extra + " " : ""}bg-white ${m.hover} border ${m.borde} ${m.texto} rounded-xl p-4 text-left shadow-sm">
+          <div class="text-xl mb-1" aria-hidden="true">${m.icono}</div>
+          <div class="font-semibold text-sm">${m.titulo}</div>
+          <div class="text-xs text-slate-400 mt-0.5">${m.sub}</div>
+        </button>`).join("")}
+      </nav>
     </div>
   `
 }
@@ -248,18 +281,30 @@ function dragLeave(e, tr) { tr.classList.remove("drag-over") }
 function dragDrop(e, tr) {
   e.stopPropagation()
   tr.classList.remove("drag-over")
-  if (_dragRow && _dragRow !== tr) {
-    const parent = tr.parentNode
-    const srcSibling = _dragRow.nextSibling
-    if (srcSibling === tr) {
-      parent.insertBefore(tr, _dragRow)
-    } else {
-      parent.insertBefore(_dragRow, tr)
-      if (srcSibling) parent.insertBefore(tr, srcSibling)
-      else parent.appendChild(tr)
-    }
-  }
+  const origen = _dragRow
   _dragRow = null
+  if (!origen || origen === tr) return
+  // Mover en la hoja = cambio SOLO de este día (R7): intercambia las dos camas en el servidor.
+  if (G.vista === "sesion" && G.sesion && !hojaBloqueada()) {
+    moverEnHoja(getReg(+origen.dataset.rid), getReg(+tr.dataset.rid))
+  }
+}
+
+async function moverEnHoja(src, dst) {
+  if (!src || !dst) return
+  const esSuplente = r => r.asistencia === "H" && r.transitorio_paciente
+  if (esSuplente(src) || esSuplente(dst)) {
+    toast("Para mover un suplente use «Programar próxima» o restaure primero", "warn"); return
+  }
+  try {
+    await apiPost("/api/asignaciones", {
+      fecha: G.sesion.fecha, turno: G.sesion.turno, paciente_id: src.paciente_id,
+      estacion: dst.estacion, cama: dst.cama, intercambiar: true,
+    })
+    G.registros = await apiGet(`/api/sesiones/${G.sesion.id}/registros`)
+    renderSesion(_estFiltro)
+    toast(`Camas intercambiadas solo por hoy (${displayCama(dst.cama, dst.estacion)} ↔ ${displayCama(src.cama, src.estacion)})`)
+  } catch (e) { toast(e.message, "err") }
 }
 function dragEnd(e, tr) {
   tr.classList.remove("dragging")
@@ -271,7 +316,7 @@ function dragEnd(e, tr) {
 function renderSesion(estFiltro = 0) {
   _estFiltro = estFiltro
   G.vista = "sesion"; updateHeader()
-  const cerrada = G.sesion.cerrada || G.readonly
+  const cerrada = hojaBloqueada()
 
   const tabsCfg = [
     { est: 0, label: "Todas",                    on: "tab-todas",   off: "tab-todas-off" },
@@ -313,7 +358,7 @@ function renderSesion(estFiltro = 0) {
 
     if (!filasPrinc.length) continue
 
-    tbodyHTML += `<tr class="row-estacion-hdr est-${est}"><td colspan="13">ESTACIÓN ${est} — MACRO ${EST_LABEL[est].toUpperCase()} · CAMAS ${(est-1)*16+1}–${est*16}</td></tr>`
+    tbodyHTML += `<tr class="row-estacion-hdr est-${est}"><td colspan="15">ESTACIÓN ${est} — MACRO ${EST_LABEL[est].toUpperCase()} · CAMAS ${(est-1)*16+1}–${est*16}</td></tr>`
     filasPrinc.forEach(r => {
       tbodyHTML += (r.asistencia === "H" && r.transitorio_paciente)
         ? buildRowSuplente(r, cerrada)
@@ -327,7 +372,7 @@ function renderSesion(estFiltro = 0) {
       const prioB = b.asistencia === "H" ? 0 : b.asistencia === "NA" ? 1 : 2
       return prioA !== prioB ? prioA - prioB : (a.paciente?.cama ?? 0) - (b.paciente?.cama ?? 0)
     })
-    tbodyHTML += `<tr class="row-hna-section-hdr"><td colspan="13">🏥&nbsp; HOSPITALIZADOS · NO ASISTEN · FALLECIDOS&nbsp;(${hnaRows.length})</td></tr>`
+    tbodyHTML += `<tr class="row-hna-section-hdr"><td colspan="15">🏥&nbsp; HOSPITALIZADOS · NO ASISTEN · FALLECIDOS&nbsp;(${hnaRows.length})</td></tr>`
     hnaRows.forEach(r => { tbodyHTML += buildHnaRow(r, cerrada) })
   }
 
@@ -336,7 +381,9 @@ function renderSesion(estFiltro = 0) {
   app().innerHTML = `
     <div class="max-w-full">
       <div class="flex flex-wrap gap-2 mb-3 print:hidden">${tabs}
-        ${cerrada ? '<span class="ml-auto text-red-600 font-bold text-sm self-center">SESIÓN CERRADA</span>' : ""}
+        ${G.sesion.mes_cerrado
+          ? `<span class="ml-auto badge-mes-cerrado self-center" role="status" title="${AVISO_MES_CERRADO}"><span aria-hidden="true">🔒</span> Mes cerrado · solo lectura</span>`
+          : cerrada ? '<span class="ml-auto text-red-600 font-bold text-sm self-center">SESIÓN CERRADA</span>' : ""}
       </div>
 
       <div class="flex flex-wrap gap-2 mb-3 text-sm print:hidden">
@@ -361,13 +408,15 @@ function renderSesion(estFiltro = 0) {
               <th>Estado</th>
               <th>P.Ent.</th>
               <th>P.Sal.</th>
+              <th title="Presión arterial de pie al salir (sistólica / diastólica, mmHg)">PA pie</th>
+              <th title="Frecuencia cardiaca al salir (lpm)">FC</th>
               <th>Pérd.</th>
               <th>GID</th>
               <th>EPO</th>
               <th>Fe</th>
               <th>Kt/V</th>
               <th title="Catéter: Citrato (C) / Hep.Sódica (HS)">Cat.</th>
-              <th>Obs.</th>
+              <th>Obs. / Resumen</th>
             </tr>
           </thead>
           <tbody id="tbl-body">${tbodyHTML}</tbody>
@@ -381,6 +430,57 @@ function renderSesion(estFiltro = 0) {
   `
 }
 
+// R3: rangos válidos (espejo de schemas.RegistroUpdate; el servidor vuelve a validar)
+const RANGOS_SALIDA = {
+  pa_pie_sistolica:  { min: 50, max: 260, etiqueta: "PA sistólica" },
+  pa_pie_diastolica: { min: 30, max: 150, etiqueta: "PA diastólica" },
+  fc:                { min: 30, max: 220, etiqueta: "FC" },
+}
+
+/** Celdas PA de pie (sist/diast) y FC, justo a la derecha del peso de salida */
+function celdasSalidaHTML(r, dis) {
+  const inp = (campo, ph, aria) => `<input type="number" step="1" min="${RANGOS_SALIDA[campo].min}" max="${RANGOS_SALIDA[campo].max}"
+      class="salida-input" data-campo="${campo}" value="${r[campo] ?? ""}" placeholder="${ph}" ${dis}
+      aria-label="${aria} (${RANGOS_SALIDA[campo].min}-${RANGOS_SALIDA[campo].max})"
+      oninput="schedSave(${r.id},'${campo}',this.value)" />`
+  return `<td><div class="flex items-center gap-0.5 pa-pie">${inp("pa_pie_sistolica", "sis", "PA de pie sistólica")}<span class="text-slate-400">/</span>${inp("pa_pie_diastolica", "dia", "PA de pie diastólica")}</div></td>
+      <td>${inp("fc", "lpm", "Frecuencia cardiaca")}</td>`
+}
+
+/** R14: EPO en jeringas de 4.000 UI (la llena la programación del mes; editable) */
+function epoCeldaHTML(r, dis) {
+  const n = r.epo_jeringas ?? (r.epo ? 1 : 0)
+  const ops = [0, 1, 2].map(v => `<option value="${v}" ${v === n ? "selected" : ""}>${v ? (v * 4).toLocaleString("es-CO") + ".000" : "—"}</option>`).join("")   // máx. 8.000 UI por sesión
+  const tit = `EPO: ${n} jeringa(s) de 4.000 UI` + (r.epo_fe_manual ? " · cambiado a mano en la hoja" : "")
+  return `<select class="epo-sel${n ? " epo-on" : ""}${n > 1 ? " epo-doble" : ""}" ${dis} title="${tit}"
+      aria-label="EPO (UI)" onchange="setEpo(${r.id}, parseInt(this.value, 10), this)">${ops}</select>`
+}
+
+function setEpo(id, n, el) {
+  if (hojaBloqueada()) {   // R12: sesión cerrada o mes cerrado = solo lectura
+    const r = getReg(id); if (el && r) el.value = String(r.epo_jeringas ?? (r.epo ? 1 : 0))
+    return
+  }
+  updateRegLocal(id, { epo_jeringas: n, epo: n > 0, epo_fe_manual: true })
+  if (el) { el.classList.toggle("epo-on", n > 0); el.classList.toggle("epo-doble", n > 1) }
+  patchRegistro(id, { epo_jeringas: n })
+}
+
+/** Botón al final de la fila: abre el resumen de sesiones del paciente */
+function btnResumenHTML(p) {
+  if (!p) return ""
+  return `<button type="button" class="btn-resumen" onclick="abrirResumenPaciente(${p.id})"
+      title="Resumen de sesiones recientes de ${escHtml(p.nombre)}" aria-label="Resumen de sesiones de ${escHtml(p.nombre)}">📋</button>`
+}
+
+/** R6: «Adicional solo hoy» (pedido de insumos). Paciente adicional permanente = etiqueta fija. */
+function adicionalHojaHTML(r, cerrada) {
+  if (r.paciente?.adicional) return `<span class="adic-chip" title="Paciente adicional: sus insumos se piden el día que llega">Adic.</span>`
+  if (cerrada) return r.adicional ? `<span class="adic-chip" title="Adicional de este día">Adic.</span>` : ""
+  return `<label class="adic-toggle" title="Adicional solo hoy: sus insumos van al pedido de hoy">
+    <input type="checkbox" ${r.adicional ? "checked" : ""} onchange="setCheck(${r.id},'adicional',this.checked)" />Adic.</label>`
+}
+
 function buildRow(r, cerrada) {
   const p = r.paciente; if (!p) return ""
   const rowCls = r.asistencia === "F" ? "row-F"
@@ -390,7 +490,7 @@ function buildRow(r, cerrada) {
   const perdCls  = clsPerdida(r.perdida_real, r.ganancia_id)
   const perdHTML = r.perdida_real != null ? `<span class="${perdCls}">${r.perdida_real.toFixed(2)}</span>` : "—"
   const gidHTML  = r.ganancia_id  != null ? `<span class="ganancia-val">${r.ganancia_id.toFixed(2)}</span>` : "—"
-  const subtxt   = pacSubtxt(p)
+  const subtxt   = pacInfoHTML(p)
   const hasTrans = !!r.transitorio_nombre
 
   const catCell = p.acceso === "CY" ? `<td>
@@ -416,9 +516,10 @@ function buildRow(r, cerrada) {
           ${accesoHTML(p)}
           <div>
             <span class="font-medium text-sm ${hasTrans ? "line-through text-slate-400" : ""}">${p.nombre}</span>
-            ${subtxt ? `<span class="pac-subtxt">${subtxt}</span>` : ""}
+            ${subtxt}
           </div>
           ${!cerrada ? `<button class="btn-reemplazar" onclick="abrirModalReemplazar(${r.id})" title="Reemplazar este paciente hoy">↕</button>` : ""}
+          ${adicionalHojaHTML(r, cerrada)}
         </div>
       </td>
       <td class="text-slate-500 text-xs">${fmtPeso(p.peso_seco)}</td>
@@ -434,18 +535,18 @@ function buildRow(r, cerrada) {
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_entrada',this.value)" /></td>
       <td><input type="number" step="0.1" min="30" max="150" class="peso-input" value="${r.peso_salida ?? ""}"
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_salida',this.value)" /></td>
+      ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
-      <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
-          onchange="setCheck(${r.id},'epo',this.checked)" /></td>
+      <td class="text-center">${epoCeldaHTML(r, dis)}</td>
       <td class="text-center"><input type="checkbox" class="chk-hierro" ${r.hierro ? "checked" : ""} ${dis}
           onchange="setCheck(${r.id},'hierro',this.checked)" /></td>
       <td><input type="number" step="0.01" min="0" max="5" class="ktv-input"
           value="${r.ktv != null ? r.ktv : ""}" placeholder="—" ${dis}
           oninput="schedSave(${r.id},'ktv',this.value)" /></td>
       ${catCell}
-      <td><input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="…" ${dis}
-          oninput="schedSave(${r.id},'observaciones',this.value)" /></td>
+      <td><div class="flex items-center gap-1"><input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="…" ${dis}
+          oninput="schedSave(${r.id},'observaciones',this.value)" />${btnResumenHTML(r.paciente)}</div></td>
     </tr>`
 }
 
@@ -456,7 +557,7 @@ function buildRowSuplente(r, cerrada) {
   const perdCls = clsPerdida(r.perdida_real, r.ganancia_id)
   const perdHTML = r.perdida_real != null ? `<span class="${perdCls}">${r.perdida_real.toFixed(2)}</span>` : "—"
   const gidHTML  = r.ganancia_id  != null ? `<span class="ganancia-val">${r.ganancia_id.toFixed(2)}</span>` : "—"
-  const subtxt  = pacSubtxt(p)
+  const subtxt  = pacInfoHTML(p)
 
   const catCell = p.acceso === "CY" ? `<td>
     <label class="flex items-center gap-0.5 text-xs cursor-pointer select-none">
@@ -481,7 +582,7 @@ function buildRowSuplente(r, cerrada) {
           ${accesoHTML(p)}
           <div>
             <span class="font-medium text-sm">${p.nombre}</span>
-            ${subtxt ? `<span class="pac-subtxt">${subtxt}</span>` : ""}
+            ${subtxt}
           </div>
           ${!cerrada ? `<button class="btn-restaurar btn-restaurar-hover" onclick="restaurarPaciente(${r.id})" title="Restaurar paciente original">↩</button>` : ""}
         </div>
@@ -499,18 +600,18 @@ function buildRowSuplente(r, cerrada) {
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_entrada',this.value)" /></td>
       <td><input type="number" step="0.1" min="30" max="150" class="peso-input" value="${r.peso_salida ?? ""}"
           placeholder="kg" ${dis} oninput="schedSave(${r.id},'peso_salida',this.value)" /></td>
+      ${celdasSalidaHTML(r, dis)}
       <td class="text-center cell-perdida">${perdHTML}</td>
       <td class="text-center cell-gid">${gidHTML}</td>
-      <td class="text-center"><input type="checkbox" class="chk-epo" ${r.epo ? "checked" : ""} ${dis}
-          onchange="setCheck(${r.id},'epo',this.checked)" /></td>
+      <td class="text-center">${epoCeldaHTML(r, dis)}</td>
       <td class="text-center"><input type="checkbox" class="chk-hierro" ${r.hierro ? "checked" : ""} ${dis}
           onchange="setCheck(${r.id},'hierro',this.checked)" /></td>
       <td><input type="number" step="0.01" min="0" max="5" class="ktv-input"
           value="${r.ktv != null ? r.ktv : ""}" placeholder="—" ${dis}
           oninput="schedSave(${r.id},'ktv',this.value)" /></td>
       ${catCell}
-      <td><input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="…" ${dis}
-          oninput="schedSave(${r.id},'observaciones',this.value)" /></td>
+      <td><div class="flex items-center gap-1"><input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="…" ${dis}
+          oninput="schedSave(${r.id},'observaciones',this.value)" />${btnResumenHTML(r.paciente)}</div></td>
     </tr>`
 }
 
@@ -538,12 +639,13 @@ function buildHnaRow(r, cerrada) {
         </div>
       </td>
       <td class="text-slate-400 text-xs">${fmtPeso(p.peso_seco)}</td>
-      <td colspan="10">
+      <td colspan="12">
         <div class="flex items-center gap-2">
           ${!cerrada && r.asistencia !== "F" ? `<button class="btn-restaurar" onclick="restaurarPaciente(${r.id})" title="Restaurar al puesto">↩ Restaurar</button>` : ""}
-          <input type="text" class="obs-input" value="${r.observaciones || ""}" placeholder="Observación…"
+          <input type="text" class="obs-input" value="${escHtml(r.observaciones)}" placeholder="Observación…"
             ${cerrada ? "disabled" : ""}
             oninput="schedSave(${r.id},'observaciones',this.value)" />
+          ${btnResumenHTML(p)}
         </div>
       </td>
     </tr>`
@@ -677,6 +779,43 @@ async function restaurarPaciente(rid) {
   } catch (e) { toast(e.message, "err") }
 }
 
+// ── R3: Resumen de sesiones del paciente (botón junto a Observaciones) ───────
+async function abrirResumenPaciente(pid) {
+  const p = G.registros.map(r => r.paciente).find(x => x?.id === pid)
+        || G.registros.map(r => r.transitorio_paciente).find(x => x?.id === pid)
+  const nombre = p?.nombre || "Paciente"
+  const hasta = G.sesion?.fecha || hoy()
+  const cerrar = `<button onclick="closeModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium">Cerrar</button>`
+  openModal(`Resumen de sesiones · ${escHtml(nombre)}`, `<p class="text-sm text-slate-500" role="status">Cargando…</p>`, cerrar, { ancho: true })
+  let data
+  try { data = await apiGet(`/api/pacientes/${pid}/resumen-sesiones?dias=14&hasta=${hasta}`) }
+  catch (e) { closeModal(); toast(e.message, "err"); return }
+
+  const num = (v, d = 1) => v == null ? "—" : Number(v).toFixed(d)
+  const pa  = s => (s.pa_pie_sistolica != null && s.pa_pie_diastolica != null) ? `${s.pa_pie_sistolica}/${s.pa_pie_diastolica}`
+                 : (s.pa_pie_sistolica ?? s.pa_pie_diastolica ?? "—")
+  const filas = data.sesiones.map(s => `<tr>
+      <td class="text-left whitespace-nowrap">${fmtFecha(s.fecha)}</td>
+      <td>${TURNOS[s.turno] || s.turno}</td>
+      <td class="font-semibold">${s.asistencia || "—"}</td>
+      <td>${num(s.peso_entrada)}</td><td>${num(s.peso_salida)}</td><td>${num(s.peso_seco)}</td>
+      <td>${num(s.ganancia, 2)}</td><td>${num(s.perdida, 2)}</td>
+      <td class="whitespace-nowrap">${pa(s)}</td><td>${s.fc ?? "—"}</td><td>${num(s.ktv, 2)}</td>
+      <td class="text-left">${escHtml(s.observaciones) || "—"}</td>
+    </tr>`).join("")
+  const inactivo = data.paciente.activo ? "" : ` <span class="badge-inactivo">Inactivo</span>`
+  openModal(
+    `Resumen de sesiones · ${escHtml(data.paciente.nombre)}${inactivo}`,
+    `<p class="text-xs text-slate-500 mb-2">Últimos ${data.dias} días (${fmtFecha(data.desde)} – ${fmtFecha(data.hasta)}) · ${data.sesiones.length} sesión(es). Pesos en kg; ganancia = P.Ent − P.Seco.</p>
+     ${data.sesiones.length ? `<div class="overflow-x-auto"><table class="tbl-resumen w-full">
+       <caption class="sr-only">Sesiones recientes del paciente</caption>
+       <thead><tr><th class="text-left">Fecha</th><th>Turno</th><th>Asist.</th><th>P.Ent.</th><th>P.Sal.</th><th>P.Seco</th>
+         <th>Ganancia</th><th>Pérdida</th><th>PA pie</th><th>FC</th><th>Kt/V</th><th class="text-left">Observaciones</th></tr></thead>
+       <tbody>${filas}</tbody></table></div>`
+       : `<p class="text-sm text-slate-500 py-6 text-center">Sin sesiones registradas en ese período.</p>`}`,
+    cerrar, { ancho: true })
+}
+
 // ── Caché de pacientes para búsqueda en modal ────────────────────────────────
 
 async function slotCargarLista() {
@@ -730,8 +869,12 @@ async function patchRegistro(id, data) {
   try {
     setSaveStatus(true)
     const updated = await apiPatch(`/api/sesiones/registros/${id}`, data)
-    updateRegLocal(id, updated)
-    setSaveStatus(false)
+    // No pisar con datos viejos del servidor los campos que el usuario aún está
+    // escribiendo (varias casillas se guardan con retraso en paralelo).
+    const fresco = { ...updated }
+    for (const k of Object.keys(fresco)) if (G.pendientes.has(id + k)) delete fresco[k]
+    updateRegLocal(id, fresco)
+    setSaveStatus(G.pendientes.size > 0)
     updateCalculatedCells(id)
   } catch (e) {
     setSaveStatus(false); toast(e.message, "err")
@@ -742,6 +885,8 @@ function schedSave(id, field, value) {
   let parsed
   if (field === "peso_entrada" || field === "peso_salida" || field === "ktv")
     parsed = value === "" ? null : parseFloat(value)
+  else if (field in RANGOS_SALIDA)
+    parsed = value === "" ? null : parseInt(value, 10)
   else
     parsed = value
 
@@ -759,6 +904,15 @@ function schedSave(id, field, value) {
     else if (field === "peso_salida")        payload.peso_salida        = r.peso_salida
     else if (field === "observaciones")      payload.observaciones      = r.observaciones
     else if (field === "ktv")               payload.ktv                = r.ktv
+    else if (field in RANGOS_SALIDA) {
+      // R3: validar rango antes de guardar (el servidor también valida)
+      const rg = RANGOS_SALIDA[field], v = r[field]
+      const el = document.querySelector(`tr[data-rid="${id}"] [data-campo="${field}"]`)
+      const fuera = v != null && (Number.isNaN(v) || v < rg.min || v > rg.max)
+      if (el) el.setAttribute("aria-invalid", fuera ? "true" : "false")
+      if (fuera) { toast(`${rg.etiqueta} fuera de rango (${rg.min}–${rg.max}); no se guardó`, "warn"); setSaveStatus(false); return }
+      payload[field] = v
+    }
     else if (field === "transitorio_nombre") payload.transitorio_nombre = r.transitorio_nombre
     await patchRegistro(id, payload)
   }, SAVE_DELAY)
@@ -790,7 +944,7 @@ function refreshRow(id) {
   const tr = document.querySelector(`tr[data-rid="${id}"]`); if (!tr) return
   const tmp = document.createElement("tbody")
   const isSuplente = r.asistencia === "H" && r.transitorio_paciente
-  const bloq = G.sesion.cerrada || G.readonly
+  const bloq = hojaBloqueada()
   tmp.innerHTML = isSuplente ? buildRowSuplente(r, bloq) : buildRow(r, bloq)
   const newTr = tmp.firstElementChild
   if (newTr) tr.replaceWith(newTr)
@@ -830,18 +984,21 @@ async function renderCierre() {
   }
 
   app().innerHTML = `
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-5xl mx-auto">
       <div class="bg-white rounded-2xl shadow-xl p-6 print-section">
         <div class="flex items-start justify-between mb-5 print:mb-3">
           <div>
             <h2 class="text-xl font-bold text-blue-900">Cierre de sesión</h2>
             <p class="text-slate-500 text-sm mt-0.5">${fmtFecha(sesion.fecha)} · ${TURNOS[sesion.turno]}
-              ${sesion.cerrada ? '<span class="ml-2 text-red-600 font-semibold text-xs">CERRADA</span>' : ""}</p>
+              ${sesion.cerrada ? '<span class="ml-2 text-red-600 font-semibold text-xs">CERRADA</span>' : ""}
+              ${sesion.mes_cerrado ? '<span class="ml-2 badge-mes-cerrado"><span aria-hidden="true">🔒</span> Mes cerrado</span>' : ""}</p>
           </div>
           <div class="flex gap-2 print:hidden">
             <button onclick="window.print()"
               class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg font-medium">Imprimir</button>
-            ${G.readonly ? "" : !sesion.cerrada
+            ${G.readonly ? "" : sesion.mes_cerrado
+              ? `<span class="text-xs text-slate-500 self-center">${AVISO_MES_CERRADO}</span>`
+              : !sesion.cerrada
               ? `<button onclick="cerrarSesion()" class="bg-red-600 hover:bg-red-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Cerrar sesión definitivo</button>`
               : `<button onclick="reabrirSesion()" class="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">Reabrir sesión</button>`}
           </div>
@@ -860,6 +1017,8 @@ async function renderCierre() {
             </tbody>
           </table>
         </div>
+
+        ${detalleCierreHTML()}
 
         <!-- 4 Firmas -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-10 print-section">
@@ -884,6 +1043,26 @@ async function renderCierre() {
   `
 }
 
+/** R3 + R1: detalle imprimible de asistentes (acceso, pesos, PA de pie, FC, Kt/V) */
+function detalleCierreHTML() {
+  const asist = G.registros.filter(r => r.asistencia === "A" && r.paciente)
+    .sort((a, b) => (a.paciente.estacion - b.paciente.estacion) || (a.paciente.cama - b.paciente.cama))
+  if (!asist.length) return ""
+  const n = (v, d = 1) => v == null ? "—" : Number(v).toFixed(d)
+  const pa = r => (r.pa_pie_sistolica != null && r.pa_pie_diastolica != null) ? `${r.pa_pie_sistolica}/${r.pa_pie_diastolica}` : "—"
+  return `<h3 class="font-bold text-blue-900 text-sm mb-2">Detalle de asistentes (${asist.length})</h3>
+    <div class="overflow-x-auto mb-6"><table class="tbl-cierre tbl-cierre-detalle w-full">
+      <thead><tr><th>Cama</th><th class="text-left">Paciente</th><th class="text-left">Acceso</th>
+        <th>P.Ent.</th><th>P.Sal.</th><th>Pérd.</th><th>PA pie</th><th>FC</th><th>Kt/V</th></tr></thead>
+      <tbody>${asist.map(r => `<tr>
+        <td>${displayCama(r.paciente.cama, r.paciente.estacion)}</td>
+        <td class="text-left">${escHtml(r.paciente.nombre)}</td>
+        <td class="text-left">${escHtml(accesoTexto(r.paciente))}</td>
+        <td>${n(r.peso_entrada)}</td><td>${n(r.peso_salida)}</td><td>${n(r.perdida_real, 2)}</td>
+        <td>${pa(r)}</td><td>${r.fc ?? "—"}</td><td>${n(r.ktv, 2)}</td></tr>`).join("")}
+      </tbody></table></div>`
+}
+
 async function cerrarSesion() {
   if (!confirm("¿Cerrar la sesión definitivamente? Los registros quedarán bloqueados.")) return
   try { G.sesion = await apiPost(`/api/cierre/${G.sesion.id}/cerrar`, {}); toast("Sesión cerrada"); renderCierre() }
@@ -899,239 +1078,11 @@ async function reabrirSesion() {
 }
 
 // ── VIEW: PROGRAMACIÓN ────────────────────────────────────────────────────────
-$("btn-programar").addEventListener("click", renderProgramacion)
+// La pantalla «Programar próxima» vive en programacion.js (R2/R7).
+$("btn-programar").addEventListener("click", () => renderProgramacion())
 
-async function renderProgramacion() {
-  G.vista = "programacion"; updateHeader()
-  const mañana = new Date(G.sesion.fecha); mañana.setDate(mañana.getDate() + 1)
-  const fechaSig = mañana.toISOString().slice(0, 10)
-  const turnoSig = G.sesion.turno
-  const pacientes = G.registros.map(r => r.paciente).filter(Boolean)
-
-  const checkMap = {}, epoMap = {}, hierroMap = {}
-  pacientes.forEach(p => {
-    const reg = G.registros.find(r => r.paciente_id === p.id)
-    checkMap[p.id]  = reg?.asistencia !== "F" && reg?.asistencia !== "NA"
-    epoMap[p.id]    = reg?.epo    || false
-    hierroMap[p.id] = reg?.hierro || false
-  })
-
-  window.toggleIncl   = (pid, v) => { checkMap[pid]  = v }
-  window.toggleEpo    = (pid, v) => { epoMap[pid]    = v }
-  window.toggleHierro = (pid, v) => { hierroMap[pid] = v }
-
-  window.guardarProgramacion = async function () {
-    const fecha = $("prog-fecha").value
-    const turno = document.querySelector("input[name=prog-turno]:checked")?.value
-    if (!fecha || !turno) { toast("Complete fecha y turno", "warn"); return }
-    const items = pacientes.filter(p => checkMap[p.id])
-      .map(p => ({ paciente_id: p.id, epo_programado: epoMap[p.id] || false, hierro_programado: hierroMap[p.id] || false }))
-    try {
-      await apiPost("/api/programacion", { fecha, turno, items })
-      toast(`Programación guardada — ${items.length} pacientes para ${fmtFecha(fecha)} ${TURNOS[turno]}`)
-      renderSesion()
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  const byEst = { 1: [], 2: [], 3: [] }
-  pacientes.forEach(p => byEst[p.estacion]?.push(p))
-  let rows = ""
-  for (const est of [1, 2, 3]) {
-    if (!byEst[est].length) continue
-    rows += `<tr style="background:${EST_COLORS[est]}"><td colspan="4" class="text-white font-bold text-xs py-1 px-3 tracking-wide">ESTACIÓN ${est} — ${EST_LABEL[est].toUpperCase()}</td></tr>`
-    byEst[est].forEach(p => {
-      rows += `<tr class="row-est-${p.estacion}" data-pid="${p.id}">
-        <td><input type="checkbox" class="w-4 h-4 cursor-pointer" ${checkMap[p.id] ? "checked" : ""} onchange="toggleIncl(${p.id},this.checked)" /></td>
-        <td class="font-medium">${p.nombre} <span class="text-slate-400 text-xs">${p.cedula}</span></td>
-        <td class="text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" style="accent-color:#2563eb" ${epoMap[p.id] ? "checked" : ""} onchange="toggleEpo(${p.id},this.checked)" /></td>
-        <td class="text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" style="accent-color:#b45309" ${hierroMap[p.id] ? "checked" : ""} onchange="toggleHierro(${p.id},this.checked)" /></td>
-      </tr>`
-    })
-  }
-
-  app().innerHTML = `
-    <div class="max-w-3xl mx-auto">
-      <div class="bg-white rounded-2xl shadow-xl p-6">
-        <h2 class="text-xl font-bold text-blue-900 mb-1">Programar próxima sesión</h2>
-        <p class="text-slate-500 text-sm mb-5">Basada en sesión ${fmtFecha(G.sesion.fecha)} · ${TURNOS[G.sesion.turno]}</p>
-        <div class="flex flex-wrap gap-4 mb-5">
-          <div>
-            <label class="block text-sm font-semibold text-slate-600 mb-1">Fecha siguiente</label>
-            <input type="date" id="prog-fecha" value="${fechaSig}" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-slate-600 mb-1">Turno</label>
-            <div class="flex gap-2">${["M","T","N"].map(t=>`<label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="prog-turno" value="${t}" ${t===turnoSig?"checked":""} class="accent-blue-700"/><span class="text-sm">${TURNOS[t]}</span></label>`).join("")}</div>
-          </div>
-          <div class="self-end ml-auto">
-            <button onclick="guardarProgramacion()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-2 rounded-lg font-semibold text-sm">Guardar programación</button>
-          </div>
-        </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200">
-          <table class="tbl-prog w-full">
-            <thead><tr><th class="w-10 text-center">Incluir</th><th>Paciente</th><th class="w-20 text-center">EPO</th><th class="w-20 text-center">Fe</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-        <div class="mt-4"><button onclick="renderSesion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-4 py-2 rounded-lg">← Volver</button></div>
-      </div>
-    </div>
-  `
-}
-
-// ── VIEW: AUTO-PROGRAMACIÓN EPO/Fe MENSUAL ────────────────────────────────────
-async function renderAutoProgram() {
-  G.vista = "autoprogram"; updateHeader()
-  const hoyDate = new Date()
-  const anioHoy = hoyDate.getFullYear()
-  const mesHoy  = hoyDate.getMonth() + 1
-
-  let _previewData = null
-  let _anio = anioHoy
-  let _mes  = mesHoy
-  let _turno = "M"
-
-  const MESES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
-                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-
-  function _renderVista(preview = null, programado = false) {
-    const turnoTabs = ["M","T","N"].map(t =>
-      `<button onclick="_apTurno('${t}')"
-        class="px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors
-          ${_turno === t ? "bg-teal-700 text-white border-teal-700" : "bg-white text-slate-600 border-slate-300 hover:border-teal-400"}">
-        ${TURNOS[t]}</button>`
-    ).join("")
-
-    let prevHTML = ""
-    if (preview && preview.pacientes.length) {
-      const rows = preview.pacientes.map(p => `<tr>
-        <td class="font-medium text-sm text-left">${p.nombre}</td>
-        <td class="text-xs text-slate-400 text-center">${p.dias || "—"}</td>
-        <td class="text-center font-semibold">${p.sesiones}</td>
-        <td class="text-center text-blue-700 font-semibold">${p.epo_count > 0 ? p.epo_count : "—"}</td>
-        <td class="text-center text-amber-700 font-semibold">${p.hierro_count > 0 ? p.hierro_count : "—"}</td>
-      </tr>`).join("")
-
-      const totEpo    = preview.pacientes.reduce((a, p) => a + p.epo_count, 0)
-      const totHierro = preview.pacientes.reduce((a, p) => a + p.hierro_count, 0)
-      const totSes    = preview.pacientes.reduce((a, p) => a + p.sesiones, 0)
-
-      prevHTML = `
-        <div class="mt-5">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-slate-700 text-sm">
-              Vista previa — ${MESES_ES[_mes-1]} ${_anio} · Turno ${TURNOS[_turno]}
-            </h3>
-            <div class="flex gap-2 text-xs">
-              <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">EPO total: ${totEpo}</span>
-              <span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-semibold">Fe total: ${totHierro}</span>
-              <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Sesiones: ${totSes}</span>
-            </div>
-          </div>
-          <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="tbl-stats w-full">
-              <thead><tr>
-                <th class="text-left">Paciente</th>
-                <th class="text-center">Días</th>
-                <th class="text-center">Sesiones</th>
-                <th class="text-center text-blue-700">EPO aplic.</th>
-                <th class="text-center text-amber-700">Fe aplic.</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-          ${!programado ? `<div class="mt-4 flex gap-3">
-            <button onclick="_apEjecutar()"
-              class="bg-teal-700 hover:bg-teal-600 text-white px-5 py-2 rounded-lg font-semibold text-sm">
-              ✓ Confirmar y programar ${MESES_ES[_mes-1]}
-            </button>
-            <p class="text-xs text-slate-400 self-center">Esto reemplaza cualquier programación previa del mes para este turno.</p>
-          </div>` : `<div class="mt-4 bg-teal-50 border border-teal-200 rounded-lg px-4 py-2 text-teal-800 text-sm font-semibold">
-            ✓ Programación guardada — ${preview.programados} entradas creadas para ${MESES_ES[_mes-1]} ${_anio}
-          </div>`}
-        </div>`
-    } else if (preview && !preview.pacientes.length) {
-      prevHTML = `<p class="text-center text-slate-400 py-4 text-sm">
-        No hay pacientes con días (LMV/TJS) configurados para el turno ${TURNOS[_turno]}.
-        Configure los días en <strong>Gestión de Pacientes → Editar</strong>.
-      </p>`
-    }
-
-    app().innerHTML = `
-      <div class="max-w-4xl mx-auto">
-        <div class="bg-white rounded-2xl shadow-xl p-6">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <h2 class="text-xl font-bold text-blue-900">Auto-programación EPO / Fe</h2>
-              <p class="text-slate-500 text-sm mt-0.5">
-                Distribuye las dosis del mes entre los días de cada paciente (LMV o TJS)
-              </p>
-            </div>
-            <button onclick="goHome()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-1.5 rounded-lg">← Inicio</button>
-          </div>
-
-          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800">
-            <strong>¿Cómo funciona?</strong> Para cada paciente con EPO/Fe configurado en su ficha:<br/>
-            · EPO: distribuye <em>epo_mensual ÷ epo_dosis</em> aplicaciones de forma equidistante en sus sesiones del mes.<br/>
-            · Fe i.v.: distribuye las aplicaciones indicadas de forma equidistante.
-          </div>
-
-          <div class="flex flex-wrap gap-4 mb-4 items-end">
-            <div>
-              <label class="block text-sm font-semibold text-slate-600 mb-1">Mes</label>
-              <select id="ap-mes" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                onchange="_anio=parseInt(this.value.split('-')[0]); _mes=parseInt(this.value.split('-')[1])">
-                ${Array.from({length: 6}, (_, i) => {
-                  const d = new Date(anioHoy, mesHoy - 1 + i)
-                  const y = d.getFullYear(), m = d.getMonth() + 1
-                  const sel = (y === _anio && m === _mes) ? "selected" : ""
-                  return `<option value="${y}-${m}" ${sel}>${MESES_ES[m-1]} ${y}</option>`
-                }).join("")}
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-600 mb-1">Turno</label>
-              <div class="flex gap-2" id="ap-turno-btns">${turnoTabs}</div>
-            </div>
-            <button onclick="_apPreview()"
-              class="ml-auto bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold self-end">
-              Ver vista previa
-            </button>
-          </div>
-
-          <div id="ap-preview">${prevHTML}</div>
-        </div>
-      </div>
-    `
-  }
-
-  window._apTurno = function(t) {
-    _turno = t
-    _renderVista()
-  }
-
-  window._apPreview = async function() {
-    const selMes = $("ap-mes")
-    if (selMes) { const [y,m] = selMes.value.split("-"); _anio = parseInt(y); _mes = parseInt(m) }
-    try {
-      _previewData = await apiGet(`/api/programacion/resumen-mes?anio=${_anio}&mes=${_mes}&turno=${_turno}`)
-      _renderVista(_previewData)
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  window._apEjecutar = async function() {
-    const selMes = $("ap-mes")
-    if (selMes) { const [y,m] = selMes.value.split("-"); _anio = parseInt(y); _mes = parseInt(m) }
-    if (!confirm(`¿Programar EPO/Fe de ${MESES_ES[_mes-1]} ${_anio} para turno ${TURNOS[_turno]}?\nEsto reemplazará la programación previa del mes.`)) return
-    try {
-      const res = await apiPost("/api/programacion/auto-mes", { anio: _anio, mes: _mes, turno: _turno })
-      toast(`✓ ${res.programados} entradas creadas para ${res.pacientes.length} pacientes`)
-      _renderVista(res, true)
-    } catch (e) { toast(e.message, "err") }
-  }
-
-  _renderVista()
-}
+// ── VIEW: EPO / Fe DEL MES ────────────────────────────────────────────────────
+// R14: la vista mensual (renderAutoProgram) vive en epo_fe.js.
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function cerrarSesionUsuario() {
@@ -1154,7 +1105,6 @@ async function iniciarApp() {
   if (G.me.auth_enabled && !G.me.autenticado) { location.href = "/login"; return }
   G.readonly = G.me.rol === "demo"
   document.body.classList.toggle("modo-demo", G.readonly)
-  document.body.classList.toggle("sin-ia", !G.me.ia_enabled)
   pintarBarraUsuario()
   renderDashboard()
 }

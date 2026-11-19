@@ -24,8 +24,10 @@ os.environ["APP_USER"] = "admin"
 os.environ["APP_PASSWORD"] = "clave-de-prueba"
 os.environ["SECRET_KEY"] = "secreto-solo-para-tests"
 os.environ["DEMO_MODE"] = "true"
+os.environ["DEMO_EPO_FE"] = "false"      # los tests asumen 48 pacientes por turno sin días asignados
 os.environ["COOKIE_SECURE"] = "false"
-os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["NEFROIA_URL"] = ""          # R9: NefroIA apagado por defecto en las pruebas
+os.environ["NEFROIA_SSO_SECRET"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 

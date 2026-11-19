@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 import models, schemas
+import hoja_dia
 from database import get_db
+from services.bloqueo_mes import exigir_abierto, mes_cerrado
 
 router = APIRouter()
+
+
+def _paciente_dict(p):
+    """Paciente embebido en el registro: mismos campos que PacienteOut (incluye acceso, ui, estado…)."""
+    return schemas.PacienteOut.model_validate(p).model_dump() if p else None
 
 
 def _build_registro_out(r: models.Registro) -> dict:
@@ -31,46 +38,22 @@ def _build_registro_out(r: models.Registro) -> dict:
         "ganancia_id": ganancia,
         "balance_seco": balance,
         "epo": bool(r.epo),
+        "epo_jeringas": r.epo_jeringas if r.epo_jeringas is not None else (1 if r.epo else 0),
+        "epo_fe_manual": bool(r.epo_fe_manual),
         "hierro": bool(r.hierro),
         "observaciones": r.observaciones or "",
         "ktv": r.ktv,
+        "pa_pie_sistolica": r.pa_pie_sistolica,
+        "pa_pie_diastolica": r.pa_pie_diastolica,
+        "fc": r.fc,
         "citrato": bool(r.citrato),
         "heparina_sodica": bool(r.heparina_sodica),
+        "adicional": bool(r.adicional),
         "transitorio_nombre": r.transitorio_nombre or "",
         "transitorio_paciente_id": r.transitorio_paciente_id,
         "transitorio_asistencia": r.transitorio_asistencia,
-        "transitorio_paciente": {
-            "id":                r.transitorio_paciente.id,
-            "nombre":            r.transitorio_paciente.nombre,
-            "cedula":            r.transitorio_paciente.cedula,
-            "estacion":          r.transitorio_paciente.estacion,
-            "cama":              r.transitorio_paciente.cama,
-            "turno":             r.transitorio_paciente.turno,
-            "peso_seco":         r.transitorio_paciente.peso_seco,
-            "activo":            r.transitorio_paciente.activo,
-            "acceso":            r.transitorio_paciente.acceso,
-            "acceso_cm":         r.transitorio_paciente.acceso_cm,
-            "heparina_unidades": r.transitorio_paciente.heparina_unidades,
-            "tipo_filtro":       r.transitorio_paciente.tipo_filtro,
-            "watson":            r.transitorio_paciente.watson,
-            "medico":            r.transitorio_paciente.medico,
-        } if r.transitorio_paciente else None,
-        "paciente": {
-            "id": r.paciente.id,
-            "nombre": r.paciente.nombre,
-            "cedula": r.paciente.cedula,
-            "estacion": r.paciente.estacion,
-            "cama": r.paciente.cama,
-            "turno": r.paciente.turno,
-            "peso_seco": r.paciente.peso_seco,
-            "activo": r.paciente.activo,
-            "acceso": r.paciente.acceso,
-            "acceso_cm": r.paciente.acceso_cm,
-            "heparina_unidades": r.paciente.heparina_unidades,
-            "tipo_filtro": r.paciente.tipo_filtro,
-            "watson": r.paciente.watson,
-            "medico": r.paciente.medico,
-        } if r.paciente else None,
+        "transitorio_paciente": _paciente_dict(r.transitorio_paciente),
+        "paciente": _paciente_dict(r.paciente),
     }
 
 
@@ -91,15 +74,34 @@ def update_registro(
         raise HTTPException(404, "Registro no encontrado")
 
     sesion = db.get(models.Sesion, r.sesion_id)
+    exigir_abierto(db, sesion.fecha)   # R12: mes cerrado -> 409
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada y no se puede modificar")
 
-    for k, v in data.model_dump(exclude_unset=True).items():
+    cambios = data.model_dump(exclude_unset=True)
+
+    # R3: la sistólica debe ser mayor que la diastólica (se compara con lo ya guardado)
+    sis = cambios.get("pa_pie_sistolica", r.pa_pie_sistolica)
+    dia = cambios.get("pa_pie_diastolica", r.pa_pie_diastolica)
+    if sis is not None and dia is not None and sis <= dia:
+        raise HTTPException(422, "La PA sistólica debe ser mayor que la diastólica")
+
+    # R14: EPO en jeringas de 4.000 UI; ``epo`` (booleano) se mantiene coherente.
+    if "epo_jeringas" in cambios and cambios["epo_jeringas"] is not None:
+        cambios["epo"] = cambios["epo_jeringas"] > 0
+    elif "epo" in cambios:
+        # Casilla booleana (clientes antiguos): sin número de jeringas queda como antes
+        # (una aplicación con la dosis de la ficha del paciente).
+        cambios["epo_jeringas"] = (r.epo_jeringas if cambios["epo"] and (r.epo_jeringas or 0) > 0 else None)
+    if {"epo", "epo_jeringas", "hierro"} & set(cambios):
+        cambios["epo_fe_manual"] = True    # el personal lo cambió: la programación ya no lo pisa
+
+    for k, v in cambios.items():
         setattr(r, k, v)
 
     db.commit()
     db.refresh(r)
-    return _build_registro_out(r)
+    return hoja_dia.con_ubicacion(_build_registro_out(r), r)
 
 
 @router.get("/{sesion_id}/registros")
@@ -117,7 +119,7 @@ def get_registros(sesion_id: int, db: Session = Depends(get_db)):
         .order_by(models.Paciente.estacion, models.Paciente.cama)
         .all()
     )
-    return [_build_registro_out(r) for r in registros]
+    return [hoja_dia.con_ubicacion(_build_registro_out(r), r) for r in registros]
 
 
 @router.post("/{sesion_id}/paciente/{paciente_id}", status_code=201)
@@ -128,10 +130,14 @@ def agregar_paciente_a_sesion(
     sesion = db.get(models.Sesion, sesion_id)
     if not sesion:
         raise HTTPException(404, "Sesion no encontrada")
+    exigir_abierto(db, sesion.fecha)   # R12
     if sesion.cerrada:
         raise HTTPException(400, "La sesion esta cerrada")
-    if not db.get(models.Paciente, paciente_id):
+    pac = db.get(models.Paciente, paciente_id)
+    if not pac:
         raise HTTPException(404, "Paciente no encontrado")
+    if pac.archivado_en is not None:   # R13
+        raise HTTPException(400, "El paciente está archivado")
 
     existente = db.query(models.Registro).filter_by(
         sesion_id=sesion_id, paciente_id=paciente_id
@@ -139,7 +145,8 @@ def agregar_paciente_a_sesion(
     if existente:
         raise HTTPException(400, "El paciente ya esta en esta sesion")
 
-    r = models.Registro(sesion_id=sesion_id, paciente_id=paciente_id)
+    r = models.Registro(sesion_id=sesion_id, paciente_id=paciente_id,
+                        estacion=pac.estacion, cama=pac.cama)
     db.add(r)
     db.commit()
 
@@ -150,7 +157,7 @@ def agregar_paciente_a_sesion(
         .filter_by(id=r.id)
         .first()
     )
-    return _build_registro_out(r)
+    return hoja_dia.con_ubicacion(_build_registro_out(r), r)
 
 
 # ── Ruta parametrica ULTIMA (evita que capture /int/registros) ──────────────
@@ -162,35 +169,21 @@ def get_or_create_sesion(fecha: str, turno: str, db: Session = Depends(get_db)):
 
     sesion = db.query(models.Sesion).filter_by(fecha=fecha, turno=turno).first()
     if sesion:
+        sesion.mes_cerrado = mes_cerrado(db, fecha)   # R12: la UI la muestra bloqueada
         return sesion
 
+    exigir_abierto(db, fecha)   # R12: no se crean hojas nuevas en un mes cerrado
     sesion = models.Sesion(fecha=fecha, turno=turno)
     db.add(sesion)
     db.flush()
 
-    programados = (
-        db.query(models.Programacion)
-        .filter_by(fecha=fecha, turno=turno)
-        .all()
-    )
-
-    if programados:
-        for prog in programados:
-            db.add(models.Registro(
-                sesion_id=sesion.id,
-                paciente_id=prog.paciente_id,
-                epo=prog.epo_programado,
-                hierro=prog.hierro_programado,
-            ))
-    else:
-        pacientes = (
-            db.query(models.Paciente)
-            .filter_by(turno=turno, activo=True)
-            .order_by(models.Paciente.estacion, models.Paciente.cama)
-            .all()
-        )
-        for p in pacientes:
-            db.add(models.Registro(sesion_id=sesion.id, paciente_id=p.id))
+    # Hoja del día = ubicación base (días LMV/MJS, programación guardada) +
+    # cambios de un día de esa fecha (R2/R7). Ver hoja_dia.componer().
+    try:
+        hoja_dia.crear_registros(db, sesion)
+    except hoja_dia.Conflicto as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
 
     db.commit()
     db.refresh(sesion)

@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, ForeignKey, UniqueConstraint,
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint, Index, Text,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -16,11 +16,18 @@ class Paciente(Base):
     turno             = Column(String, nullable=False)    # M, T, N
     peso_seco         = Column(Float)
     activo            = Column(Boolean, default=True)
+    # R10: motivo de inactividad (solo cuando activo es falso). Ver services/pacientes.py
+    motivo_inactivo       = Column(String)   # hospitalizado | otro
+    motivo_inactivo_texto = Column(String)   # texto libre
     # Campos clínicos
-    acceso            = Column(String)   # CY | FAV_L | FAV_AR | FAV_ANE | F16 | F17
-    acceso_cm         = Column(Integer)  # solo FAV_ANE: cm de cinta de acetato
+    acceso            = Column(String)   # FAV | CY  (R1)
+    acceso_estado     = Column(String)   # FAV: limpia | alto_riesgo | aneurismatica
+    acceso_calibre    = Column(Integer)  # FAV: calibre de aguja 15 | 16 | 17
+    acceso_sitio      = Column(String)   # CY: yugular | femoral
+    acceso_cm         = Column(Integer)  # solo FAV aneurismática: cm de cinta de acetato
     heparina_unidades = Column(Integer)  # UI/h (10-20)
     tipo_filtro       = Column(String)   # R-300, R-400, B-18, B-20, etc.
+    heparina_ui_kg    = Column(Integer)  # R4: heparina en UI por kg de peso (10-20); heparina_unidades sigue siendo UI/h
     watson            = Column(Float)    # Volumen distribución Watson (litros)
     medico            = Column(String)   # Nefrólogo tratante
     # Programación EPO/Fe mensual
@@ -28,6 +35,13 @@ class Paciente(Base):
     epo_mensual       = Column(Float)    # UI totales prescritas al mes
     epo_dosis         = Column(Float)    # UI por aplicación
     hierro_mensual    = Column(Integer)  # Número de aplicaciones de Fe al mes
+    # R13: archivo. «Eliminar paciente» = archivar (nunca se borra nada clínico).
+    archivado_en      = Column(DateTime)       # UTC; null = no archivado
+    archivado_motivo  = Column(String(200))
+    # R5/R6 Pedido de insumos
+    adicional         = Column(Boolean)  # paciente adicional (null/False = no): sus insumos se piden el día que llega
+    citrato           = Column(Boolean)  # CY: sellado/uso habitual de citrato
+    heparina_sodica   = Column(Boolean)  # CY: sellado/uso habitual de heparina sódica
 
 
 class Sesion(Base):
@@ -58,11 +72,30 @@ class Registro(Base):
     hierro             = Column(Boolean, default=False)
     observaciones      = Column(String, default="")
     ktv                = Column(Float)             # Kt/V medido en la sesión
+    # R3: última toma de pie al salir
+    pa_pie_sistolica   = Column(Integer)           # mmHg
+    pa_pie_diastolica  = Column(Integer)           # mmHg
+    fc                 = Column(Integer)           # lpm
     citrato            = Column(Boolean, default=False)  # CY disfuncional: citrato
     heparina_sodica    = Column(Boolean, default=False)  # CY disfuncional: hep. sódica
     transitorio_nombre      = Column(String)
     transitorio_paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=True)
     transitorio_asistencia  = Column(String)
+    # Ubicación del paciente EN ESTA SESIÓN (foto al crear el registro). NULL en
+    # registros antiguos = se usa la ubicación base del paciente. Así un cambio
+    # permanente posterior no altera la hoja de sesiones pasadas.
+    estacion = Column(Integer)
+    cama     = Column(Integer)
+    # R11: foto JSON de los datos del paciente al cerrar la sesión (cama, peso seco…)
+    snapshot                = Column(Text)
+    # R6: adicional solo de esta sesión (quien asiste en la fila: paciente o suplente)
+    adicional = Column(Boolean)
+    # R14: jeringas de EPO de 4.000 UI de esta sesión (NULL en registros antiguos:
+    # ``epo`` booleano = 1 aplicación). ``epo`` se mantiene = epo_jeringas > 0.
+    epo_jeringas            = Column(Integer)
+    # R14: el personal cambió a mano la EPO/Fe de esta fila: la programación
+    # mensual ya no la sobrescribe.
+    epo_fe_manual           = Column(Boolean)
 
     sesion               = relationship("Sesion", back_populates="registros")
     paciente             = relationship("Paciente", foreign_keys=[paciente_id])
@@ -86,6 +119,43 @@ class Programacion(Base):
     __table_args__ = (UniqueConstraint("fecha", "turno", "paciente_id", name="uq_prog"),)
 
 
+class AsignacionDia(Base):
+    """Cambio de ubicación de UN día (R7): se aplica sobre la asignación base del
+    paciente solo para `fecha`. La ubicación habitual (Paciente.estacion/cama/turno)
+    no cambia; el siguiente día de diálisis vuelve a la distribución habitual.
+
+    tipo:
+      - mover:       paciente habitual del turno en otra cama/estación ese día.
+      - transitorio: paciente que ese día no le tocaba este turno/cama (otro turno,
+                     otro grupo de días o paciente nuevo) ocupa una cama libre.
+      - reemplazo:   el paciente ocupa la cama de `reemplaza_paciente_id`, que ese
+                     día no viene (queda como «H» con suplente en la hoja).
+    Un paciente tiene como máximo un cambio por fecha (en cualquier turno).
+    `grupo` enlaza los dos cambios de un intercambio para deshacerlos juntos.
+    """
+    __tablename__ = "asignaciones_dia"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    fecha                = Column(String, nullable=False)    # YYYY-MM-DD
+    turno                = Column(String, nullable=False)    # M, T, N
+    paciente_id          = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    estacion             = Column(Integer, nullable=False)
+    cama                 = Column(Integer, nullable=False)
+    tipo                 = Column(String, nullable=False)    # mover | transitorio | reemplazo
+    reemplaza_paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=True)
+    grupo                = Column(String, nullable=True)
+    creado_por           = Column(String)
+    creado_en            = Column(DateTime)
+
+    paciente   = relationship("Paciente", foreign_keys=[paciente_id])
+    reemplaza  = relationship("Paciente", foreign_keys=[reemplaza_paciente_id])
+
+    __table_args__ = (
+        UniqueConstraint("fecha", "paciente_id", name="uq_asig_fecha_paciente"),
+        Index("ix_asig_fecha_turno", "fecha", "turno"),
+    )
+
+
 # ── Fase 2 ────────────────────────────────────────────────────────────────────
 
 class Laboratorio(Base):
@@ -101,3 +171,259 @@ class Laboratorio(Base):
     observaciones = Column(String, default="")
 
     paciente = relationship("Paciente")
+
+
+# ── R11–R13 ───────────────────────────────────────────────────────────────────
+
+class Medico(Base):
+    """Directorio de médicos tratantes. ``pacientes.medico`` sigue siendo el texto
+    libre; se enlaza por nombre (sin distinguir mayúsculas ni espacios)."""
+    __tablename__ = "medicos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(120), nullable=False, unique=True)
+    iniciales = Column(String(10), nullable=False, default="")
+    teams_webhook_url = Column(String(600))      # R13: webhook de Teams (Workflows)
+
+
+class LabRango(Base):
+    """Rangos configurables por analito; sustituyen a los de ``services/labs.py`` (valores por defecto)."""
+    __tablename__ = "lab_rangos"
+
+    tipo = Column(String(30), primary_key=True)
+    minimo = Column(Float)       # por debajo -> bajo
+    maximo = Column(Float)       # por encima -> alto
+    muy_alto = Column(Float)     # por encima -> muy alto
+
+
+class PacienteInactividad(Base):
+    """Periodos en que el paciente no contó para la asistencia: [desde, hasta)."""
+    __tablename__ = "paciente_inactividad"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False, index=True)
+    desde = Column(String(10), nullable=False)     # YYYY-MM-DD
+    hasta = Column(String(10))                     # null = sigue inactivo/archivado
+    origen = Column(String(12), nullable=False)    # inactivo | archivado
+    motivo = Column(String(200))
+
+
+class CierreMes(Base):
+    """Un cierre de mes (facturación). El vigente es el último sin ``reabierto_en``."""
+    __tablename__ = "cierres_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)      # YYYY-MM
+    cerrado_por = Column(String(80), nullable=False)
+    cerrado_en = Column(DateTime, nullable=False)
+    reabierto_por = Column(String(80))
+    reabierto_en = Column(DateTime)
+    reapertura_motivo = Column(String(300))
+
+
+class AsistenciaMensual(Base):
+    """Registro mensual INMUTABLE de asistencia por paciente (base de la facturación)."""
+    __tablename__ = "asistencia_mensual"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cierre_id = Column(Integer, ForeignKey("cierres_mes.id"), nullable=False, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    programadas = Column(Integer, nullable=False)
+    asistidas = Column(Integer, nullable=False)
+    porcentaje = Column(Float, nullable=False)
+    cerrado_por = Column(String(80), nullable=False)
+    cerrado_en = Column(DateTime, nullable=False)
+
+
+class AuditoriaCierreMes(Base):
+    __tablename__ = "auditoria_cierre_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    accion = Column(String(10), nullable=False)      # cerrar | reabrir
+    usuario = Column(String(80), nullable=False)
+    motivo = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
+class AuditoriaPaciente(Base):
+    """R13: bitácora de archivar / restaurar / reactivar pacientes. Sin FK: la
+    bitácora sobrevive aunque una prueba o una purga manual borre al paciente."""
+    __tablename__ = "auditoria_pacientes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paciente_id = Column(Integer, nullable=False, index=True)
+    cedula = Column(String(40))
+    accion = Column(String(12), nullable=False)      # archivar | restaurar | reactivar
+    usuario = Column(String(80), nullable=False)
+    motivo = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
+class TeamsEnvio(Base):
+    """Bitácora de notificaciones a Teams (evita duplicados del mismo día)."""
+    __tablename__ = "teams_envios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(String(10), nullable=False, index=True)
+    medico_id = Column(Integer, ForeignKey("medicos.id"), nullable=False)
+    pacientes = Column(Integer, nullable=False, default=0)
+    estado = Column(String(12), nullable=False)       # enviado | error
+    http_status = Column(Integer)
+    detalle = Column(String(300))
+    creado_en = Column(DateTime, nullable=False)
+
+
+from sqlalchemy import event  # noqa: E402
+
+
+@event.listens_for(AsistenciaMensual, "before_update")
+@event.listens_for(AsistenciaMensual, "before_delete")
+def _asistencia_mensual_inmutable(mapper, connection, target):
+    """R12: el registro mensual cerrado no se modifica ni se borra (se reabre el cierre y se vuelve a cerrar)."""
+    raise ValueError("El registro mensual de asistencia es inmutable")
+
+
+# ── R5/R6 Pedido de insumos ───────────────────────────────────────────────────
+
+class InsumosConfig(Base):
+    """Reglas del pedido de insumos editadas por el administrador (JSON).
+    Sin fila = se usan las reglas por defecto de services/insumos_reglas.json."""
+    __tablename__ = "insumos_config"
+
+    id             = Column(Integer, primary_key=True)
+    clave          = Column(String(40), unique=True, nullable=False)   # "reglas"
+    contenido      = Column(Text, nullable=False)                      # JSON
+    actualizado_en = Column(DateTime)
+    actualizado_por = Column(String(80))
+
+
+class PedidoInsumos(Base):
+    """Foto de un pedido CONFIRMADO/ENVIADO. Las ediciones posteriores de pacientes
+    o reglas no lo cambian. Antes de confirmar el pedido se calcula en vivo."""
+    __tablename__ = "pedido_insumos"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    fecha_pedido    = Column(String(10), nullable=False, unique=True)   # día en que se hace el pedido
+    fecha_sesiones  = Column(String(10), nullable=False, index=True)    # día de diálisis que cubre
+    estado          = Column(String(20), nullable=False, default="confirmado")
+    confirmado_en   = Column(DateTime)
+    confirmado_por  = Column(String(80))
+    reglas_json     = Column(Text)        # reglas usadas (auditoría)
+    resumen_json    = Column(Text)        # avisos/notas del cálculo
+
+    items = relationship("PedidoInsumosItem", back_populates="pedido",
+                         cascade="all, delete-orphan", order_by="PedidoInsumosItem.id")
+
+
+class PedidoInsumosItem(Base):
+    """Una línea del pedido: un insumo de un paciente en una sección."""
+    __tablename__ = "pedido_insumos_items"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    pedido_id       = Column(Integer, ForeignKey("pedido_insumos.id", ondelete="CASCADE"), nullable=False, index=True)
+    seccion         = Column(String(20), nullable=False)   # pedido | adicional | devolucion
+    fecha_sesion    = Column(String(10))
+    paciente_id     = Column(Integer)                      # sin FK: la foto sobrevive al paciente
+    paciente_nombre = Column(String(200))
+    cedula          = Column(String(40))
+    turno           = Column(String(1))
+    estacion        = Column(Integer)
+    cama            = Column(Integer)
+    acceso          = Column(String(80))
+    insumo_codigo   = Column(String(60))                   # NULL = paciente sin insumos (solo avisos)
+    insumo_nombre   = Column(String(120))
+    cantidad        = Column(Integer)
+    unidad          = Column(String(30))
+    detalle         = Column(String(120))
+    alertas         = Column(String(300))                  # avisos del paciente separados por « · »
+
+    pedido = relationship("PedidoInsumos", back_populates="items")
+
+
+# ── R14: auto-programación mensual de EPO / hierro ───────────────────────────
+
+class EpoFeMesPaciente(Base):
+    """Totales del mes de un paciente: jeringas de EPO (4.000 UI) y dosis de hierro."""
+    __tablename__ = "epo_fe_mes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)              # YYYY-MM
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    epo_jeringas = Column(Integer, nullable=False, default=0)
+    fe_dosis = Column(Integer, nullable=False, default=0)
+    actualizado_por = Column(String(80))
+    actualizado_en = Column(DateTime)
+
+    paciente = relationship("Paciente")
+
+    __table_args__ = (UniqueConstraint("mes", "paciente_id", name="uq_epo_fe_mes_paciente"),)
+
+
+class EpoFeCelda(Base):
+    """Plan de UNA sesión del paciente: jeringas de EPO y dosis de hierro (0/1).
+
+    ``manual`` = ajuste del administrador en la grilla: el recálculo no lo toca
+    (solo «Regenerar mes»). Lo efectivamente programado = plan + reprogramaciones
+    que llegan − lo que sale por inasistencia (ver EpoFeMovimiento).
+    """
+    __tablename__ = "epo_fe_celdas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    fecha = Column(String(10), nullable=False)                        # YYYY-MM-DD
+    epo = Column(Integer, nullable=False, default=0)                  # jeringas
+    fe = Column(Integer, nullable=False, default=0)                   # dosis (0/1)
+    manual = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (UniqueConstraint("paciente_id", "fecha", name="uq_epo_fe_celda"),)
+
+
+class EpoFeMovimiento(Base):
+    """Reprogramación por inasistencia: la dosis de ``fecha_origen`` pasa a ``fecha_destino``
+    (varias filas por día si la EPO no cabe en una sola sesión: tope 2 jeringas).
+
+    ``fecha_destino`` NULL = no quedó ninguna sesión del mes donde ponerla (pendiente).
+    ``activo`` falso = se revirtió (p. ej. se corrigió la asistencia y sí vino).
+    """
+    __tablename__ = "epo_fe_movimientos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    tipo = Column(String(4), nullable=False)                          # epo | fe
+    fecha_origen = Column(String(10), nullable=False)
+    fecha_destino = Column(String(10))
+    cantidad = Column(Integer, nullable=False)
+    activo = Column(Boolean, nullable=False, default=True)
+    # «falta» (NULL en filas antiguas): se arrastra a la sesión siguiente.
+    # «hosp»: hospitalizado (H): se cancela y se recupera al volver (destino NULL = aún no).
+    motivo = Column(String(10))
+    creado_por = Column(String(80))
+    creado_en = Column(DateTime)
+    actualizado_en = Column(DateTime)
+
+
+class EpoFeConfigMes(Base):
+    """Días de laboratorio de un mes cuando no son los de la regla por defecto."""
+    __tablename__ = "epo_fe_config_mes"
+
+    mes = Column(String(7), primary_key=True)
+    dias_lab = Column(String(200), nullable=False, default="")       # fechas YYYY-MM-DD separadas por coma
+    actualizado_por = Column(String(80))
+    actualizado_en = Column(DateTime)
+
+
+class EpoFeAuditoria(Base):
+    """Bitácora de la programación: generar, ajustes, reprogramaciones, borrado."""
+    __tablename__ = "epo_fe_auditoria"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mes = Column(String(7), nullable=False, index=True)
+    paciente_id = Column(Integer)                                     # sin FK: sobrevive al borrado del mes
+    accion = Column(String(20), nullable=False)
+    detalle = Column(String(400))
+    usuario = Column(String(80))
+    creado_en = Column(DateTime, nullable=False)

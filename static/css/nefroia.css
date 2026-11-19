@@ -1,0 +1,21 @@
+/* R9 — apartado «IA» (NefroIA integrado). Tailwind compilado no se regenera:
+   estilos propios aquí. */
+.nefroia-panel { max-width: 80rem; margin: 0 auto; background: #fff; border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, .12); padding: 1rem; }
+.nefroia-cabecera { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem;
+  margin-bottom: .75rem; }
+.nefroia-btn { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: .5rem;
+  padding: .375rem .75rem; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.nefroia-btn:hover { background: #e0e7ff; }
+.nefroia-btn:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+.nefroia-marco-wrap { position: relative; border: 1px solid #e2e8f0; border-radius: .75rem; overflow: hidden;
+  background: #f8fafc; }
+.nefroia-marco { display: block; width: 100%; height: calc(100vh - 13rem); min-height: 28rem; border: 0; background: #fff; }
+.nefroia-cargando { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #64748b; font-size: .875rem; pointer-events: none; }
+.nefroia-aviso { border: 1px dashed #c7d2fe; background: #f8faff; border-radius: .75rem; padding: 1rem; }
+.nefroia-aviso code { font-size: .8rem; background: #eef2ff; padding: 0 .25rem; border-radius: .25rem; }
+@media (max-width: 640px) {
+  .nefroia-panel { padding: .5rem; border-radius: .75rem; }
+  .nefroia-marco { height: calc(100vh - 15rem); min-height: 24rem; }
+}

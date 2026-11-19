@@ -51,6 +51,51 @@ def generar_cedula(idx: int) -> str:
     return f"V-{base:08d}"
 
 
+FILTROS = ["R-300", "R-400", "B-18", "B-20", "FX60", "FX80"]
+
+
+def datos_clinicos(idx: int) -> dict:
+    """Acceso, filtro, heparina y UI ficticios y deterministas (R1/R4)."""
+    ciclo = idx % 6
+    if ciclo in (0, 1, 2):          # FAV limpia con aguja 15/16/17
+        acc = dict(acceso="FAV", acceso_estado="limpia", acceso_calibre=(15, 16, 17)[ciclo])
+    elif ciclo == 3:
+        acc = dict(acceso="FAV", acceso_estado="alto_riesgo", acceso_calibre=16)
+    elif ciclo == 4:
+        acc = dict(acceso="CY", acceso_sitio="yugular")
+    else:
+        acc = dict(acceso="CY", acceso_sitio="femoral")
+    if idx % 17 == 5:               # algunas fístulas aneurismáticas (con cinta de acetato)
+        acc = dict(acceso="FAV", acceso_estado="aneurismatica", acceso_calibre=17, acceso_cm=12 + idx % 6)
+    return {
+        **acc,
+        "tipo_filtro": FILTROS[idx % len(FILTROS)],
+        "heparina_unidades": 10 + idx % 11,   # 10-20 UI/h
+        "heparina_ui_kg": 10 + (idx * 3) % 11,   # UI/kg, 10-20
+    }
+
+
+def datos_epo_fe(idx: int, cama: int) -> dict:
+    """Días de diálisis y prescripción mensual de EPO / hierro ficticios y deterministas (R14).
+
+    Días por cama (mitad LMV, mitad MJS en cada turno); EPO 0-14 jeringas de 4.000 UI
+    al mes (cabe en el tope de 2 por sesión) y hierro 0-4 dosis.
+    """
+    return {
+        "dias": "LMV" if cama % 2 else "MJS",
+        "epo_mensual": float(((idx * 5) % 15) * 4000),
+        "epo_dosis": 4000.0,
+        "hierro_mensual": (idx * 7) % 5,
+    }
+
+
+def datos_insumos(idx: int, acceso: str) -> dict:
+    """Citrato / heparina sódica habituales en algunos catéteres (R5/R6)."""
+    if acceso != "CY":
+        return {}
+    return {"citrato": idx % 4 == 0, "heparina_sodica": idx % 4 == 2}
+
+
 def crear_pacientes() -> list:
     """Genera los 144 pacientes ficticios (3 turnos × 3 estaciones × 16 camas)."""
     pacientes = []
@@ -66,6 +111,7 @@ def crear_pacientes() -> list:
                     turno=turno,
                     peso_seco=PESOS_SECOS[idx % len(PESOS_SECOS)],
                     activo=True,
+                    **datos_clinicos(idx),
                 ))
                 idx += 1
     return pacientes
