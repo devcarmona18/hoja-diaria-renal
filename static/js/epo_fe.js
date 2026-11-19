@@ -57,7 +57,7 @@ function _efFila(f, dias) {
   return `<tr class="${f.activo ? "" : "ef-fila-inactiva"}">
     <th scope="row" class="ef-pac"><span class="ef-nombre">${escHtml(f.nombre)}</span>
       <span class="ef-sub">${f.dias || "—"} · ${TURNOS[f.turno] || f.turno}${f.activo ? "" : " · inactivo"}</span>${avisos}</th>
-    <td class="ef-tot"><input type="number" min="0" max="60" class="ef-inp" value="${f.epo_mes}" ${ro}
+    <td class="ef-tot"><input type="number" min="0" max="24" class="ef-inp" value="${f.epo_mes}" ${ro}
         aria-label="EPO del mes de ${escHtml(f.nombre)} (jeringas de 4.000 UI)" onchange="_efTotales(${f.paciente_id},'epo_jeringas',this.value)" /></td>
     <td class="ef-tot"><input type="number" min="0" max="26" class="ef-inp" value="${f.fe_mes}" ${ro}
         aria-label="Hierro del mes de ${escHtml(f.nombre)} (dosis)" onchange="_efTotales(${f.paciente_id},'fe_dosis',this.value)" /></td>
@@ -183,7 +183,7 @@ async function _efTotales(pid, campo, valor) {
 function _efEditarCelda(pid, fecha) {
   const f = EF.data.filas.find(x => x.paciente_id === pid); if (!f) return
   const c = f.celdas[fecha] || { epo: 0, fe: 0, epo_plan: 0, fe_plan: 0, manual: false, llega: [] }
-  const ops = [0, 1, 2, 3].map(v => `<option value="${v}" ${v === c.epo_plan ? "selected" : ""}>${v ? `${v} jeringa(s) · ${_efUI(v)} UI` : "Sin EPO"}</option>`).join("")
+  const ops = [0, 1, 2].map(v => `<option value="${v}" ${v === c.epo_plan ? "selected" : ""}>${v ? `${v} jeringa(s) · ${_efUI(v)} UI` : "Sin EPO"}</option>`).join("")
   const llega = c.llega.length ? `<p class="text-xs text-amber-700 mt-2">Además recibe reprogramado: ${c.llega.map(l => `${l.tipo === "epo" ? l.cantidad + " jer. EPO" : "Fe"} del ${fmtFecha(l.desde)}`).join(", ")}.</p>` : ""
   openModal(`${escHtml(f.nombre)} · ${fmtFecha(fecha)}`,
     `<p class="text-sm text-slate-500 mb-3">El ajuste queda fijo: «Recalcular» no lo cambia (solo «Regenerar mes»). Las demás sesiones automáticas se reparten de nuevo para mantener el total del mes.</p>

@@ -106,7 +106,7 @@ class RegistroUpdate(BaseModel):
     peso_entrada: Optional[float] = None
     peso_salida: Optional[float] = None
     epo: Optional[bool] = None
-    epo_jeringas: Optional[int] = Field(None, ge=0, le=6)   # R14: jeringas de 4.000 UI
+    epo_jeringas: Optional[int] = Field(None, ge=0, le=2)   # R14: jeringas de 4.000 UI (máx. 2 = 8.000 UI)
     hierro: Optional[bool] = None
     observaciones: Optional[str] = None
     ktv: Optional[float] = None

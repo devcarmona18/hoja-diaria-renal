@@ -23,8 +23,9 @@ laboratorio:
    (``posiciones_uniformes``): 4 jeringas en 13 sesiones → sesiones 2, 5, 9 y 12.
 2. ``N < E <= 2N``: todas llevan 1 jeringa y ``E - N`` llevan 2 (8.000 UI),
    también repartidas de forma uniforme (14 jeringas en 13 sesiones → 1 doble).
-3. ``E > 2N`` (inevitable): primero 2 jeringas en cada sesión normal, el resto en
-   los días de laboratorio (máx. 2 c/u) y, si aún sobra, reparto parejo en todas.
+3. ``E > 2N`` (inevitable): primero 2 jeringas en cada sesión normal y el resto en
+   los días de laboratorio (máx. 2 c/u). **Nunca más de 2 jeringas (8.000 UI) por
+   sesión**: lo que no cabe queda sin programar (la grilla lo avisa).
 
 Reparto de hierro (toda la unidad a la vez) — «opción B»
 --------------------------------------------------------
@@ -56,7 +57,9 @@ from datetime import date, timedelta
 from typing import Iterable
 
 JERINGA_UI = 4000
-EPO_MAX_NORMAL = 2          # jeringas por sesión antes de considerar los días de laboratorio
+EPO_MAX_SESION = 2          # TOPE: 2 jeringas (8.000 UI) por sesión de diálisis, nunca más
+EPO_MAX_NORMAL = EPO_MAX_SESION   # nombre histórico
+EPO_MAX_MES = 24            # jeringas por mes (12 sesiones × 2 como máximo)
 
 
 # ── Calendario ────────────────────────────────────────────────────────────────
@@ -137,12 +140,9 @@ def repartir_epo(sesiones: list[date], jeringas: int, dias_lab: Iterable[date] =
                     out[s] = out.get(s, 0) + 1
                 _uniforme(en_lab, resto - nl, out)
         else:
-            # Más de 2 jeringas por sesión en todas: reparto parejo sobre todas.
-            out = {}
-            q, r = divmod(jeringas, len(sesiones))
-            for s in sesiones:
-                out[s] = q
-            _uniforme(sesiones, r, out)
+            # Tope de 2 por sesión también en laboratorio: lo que sobra no se programa.
+            for s in en_lab:
+                out[s] = EPO_MAX_SESION
     return {s: v for s, v in out.items() if v > 0}
 
 

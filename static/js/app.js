@@ -449,7 +449,7 @@ function celdasSalidaHTML(r, dis) {
 /** R14: EPO en jeringas de 4.000 UI (la llena la programación del mes; editable) */
 function epoCeldaHTML(r, dis) {
   const n = r.epo_jeringas ?? (r.epo ? 1 : 0)
-  const ops = [0, 1, 2, 3].map(v => `<option value="${v}" ${v === n ? "selected" : ""}>${v ? (v * 4).toLocaleString("es-CO") + ".000" : "—"}</option>`).join("")
+  const ops = [0, 1, 2].map(v => `<option value="${v}" ${v === n ? "selected" : ""}>${v ? (v * 4).toLocaleString("es-CO") + ".000" : "—"}</option>`).join("")   // máx. 8.000 UI por sesión
   const tit = `EPO: ${n} jeringa(s) de 4.000 UI` + (r.epo_fe_manual ? " · cambiado a mano en la hoja" : "")
   return `<select class="epo-sel${n ? " epo-on" : ""}${n > 1 ? " epo-doble" : ""}" ${dis} title="${tit}"
       aria-label="EPO (UI)" onchange="setEpo(${r.id}, parseInt(this.value, 10), this)">${ops}</select>`

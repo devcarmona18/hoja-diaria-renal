@@ -25,14 +25,14 @@ class GenerarIn(BaseModel):
 
 
 class TotalesIn(BaseModel):
-    epo_jeringas: Optional[int] = Field(None, ge=0, le=60)
+    epo_jeringas: Optional[int] = Field(None, ge=0)     # tope (24 y 2 × sesiones) en el servicio
     fe_dosis: Optional[int] = Field(None, ge=0, le=26)
 
 
 class CeldaIn(BaseModel):
     paciente_id: int
     fecha: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    epo: Optional[int] = Field(None, ge=0, le=srv.MAX_EPO_CELDA)
+    epo: Optional[int] = Field(None, ge=0)              # tope 2 por sesión en el servicio
     fe: Optional[int] = Field(None, ge=0, le=1)
     quitar_ajuste: bool = False
 

@@ -47,7 +47,7 @@ JERINGA_UI = alg.JERINGA_UI
 DIAS_SEMANA = {"LMV": (0, 2, 4), "MJS": (1, 3, 5), "TJS": (1, 3, 5)}
 DIA_CORTO = ["L", "M", "X", "J", "V", "S", "D"]
 ASISTIO, FALTO, INACTIVO = "asistio", "falto", "inactivo"
-MAX_EPO_CELDA = 6
+MAX_EPO_CELDA = alg.EPO_MAX_SESION      # tope: 2 jeringas (8.000 UI) por sesión
 
 
 # ── Utilidades ────────────────────────────────────────────────────────────────
@@ -291,7 +291,13 @@ def generar(db: Session, mes: str, usuario: str, regenerar: bool = False) -> dic
     for p in consulta_activos(db).all():
         if p.id in mesobj.totales or not dias_semana(p):
             continue
-        t = models.EpoFeMesPaciente(mes=mes, paciente_id=p.id, epo_jeringas=jeringas_por_defecto(p),
+        n_ses = len(sesiones_paciente(p, mes, _periodos(db, [p.id]).get(p.id, [])))
+        epo = jeringas_por_defecto(p)
+        if epo > tope_epo_mes(n_ses):     # la ficha pide más de lo que cabe: se limita y se avisa
+            _auditar(db, mes, "limitar", f"{p.nombre}: EPO de la ficha {epo} jeringas → {tope_epo_mes(n_ses)} "
+                     "(máx. 2 por sesión y 24 al mes)", usuario, p.id)
+            epo = tope_epo_mes(n_ses)
+        t = models.EpoFeMesPaciente(mes=mes, paciente_id=p.id, epo_jeringas=epo,
                                     fe_dosis=p.hierro_mensual or 0, actualizado_por=usuario,
                                     actualizado_en=ahora_utc())
         db.add(t)
@@ -315,11 +321,29 @@ def _exigir_plan(mesobj: Mes, pid: int) -> models.EpoFeMesPaciente:
     return t
 
 
+def tope_epo_mes(n_sesiones: int) -> int:
+    """Máximo de jeringas del mes: 24 y nunca más de 2 por sesión del paciente."""
+    return min(alg.EPO_MAX_MES, alg.EPO_MAX_SESION * n_sesiones)
+
+
+def validar_epo_mes(epo: int, n_sesiones: int) -> None:
+    if epo > alg.EPO_MAX_MES:
+        raise ReglaError(f"Máximo {alg.EPO_MAX_MES} jeringas de EPO al mes (2 por sesión, 8.000 UI).", 422)
+    if epo > alg.EPO_MAX_SESION * n_sesiones:
+        raise ReglaError(f"Con {n_sesiones} sesión(es) en el mes caben como máximo "
+                         f"{alg.EPO_MAX_SESION * n_sesiones} jeringas (2 por sesión, 8.000 UI).", 422)
+
+
 def fijar_totales(db: Session, mes: str, pid: int, epo: Optional[int], fe: Optional[int], usuario: str) -> dict:
     _anio_mes(mes)
     exigir_abierto(db, mes)
     mesobj = Mes(db, mes)
     t = _exigir_plan(mesobj, pid)
+    if epo is not None:
+        if epo < 0:
+            raise ReglaError("La EPO del mes no puede ser negativa.", 422)
+        p = mesobj.pacientes[pid]
+        validar_epo_mes(epo, len(sesiones_paciente(p, mes, _periodos(db, [pid]).get(pid, []))))
     antes = (t.epo_jeringas, t.fe_dosis)
     if epo is not None:
         t.epo_jeringas = epo
@@ -340,6 +364,8 @@ def ajustar_celda(db: Session, mes: str, pid: int, fecha: str, epo: Optional[int
         raise ReglaError("La fecha no pertenece al mes", 422)
     _anio_mes(mes)
     exigir_abierto(db, mes)
+    if epo is not None and not 0 <= epo <= alg.EPO_MAX_SESION:
+        raise ReglaError("Máximo 2 jeringas de EPO (8.000 UI) por sesión.", 422)
     mesobj = Mes(db, mes)
     _exigir_plan(mesobj, pid)
     p = mesobj.pacientes[pid]
@@ -422,10 +448,12 @@ def borrar_mes(db: Session, mes: str, usuario: str, hoy: Optional[date] = None) 
 def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) -> dict:
     """Recorre el mes en orden y reprograma las dosis de los días en que el paciente faltó.
 
-    - EPO: pasa COMPLETA a la siguiente sesión aún abierta del paciente (saltando días
-      de laboratorio si hay otra): si esa tenía 1 jeringa queda en 2 (8.000 UI).
+    - EPO: pasa a la siguiente sesión aún abierta del paciente (saltando días de
+      laboratorio si hay otra), **sin pasar nunca de 2 jeringas (8.000 UI) por
+      sesión**: lo que excede sigue a las sesiones siguientes (máx. 2 c/u).
     - Hierro: pasa a una sesión futura aún abierta SIN hierro; se prefiere un día que
       no sea de laboratorio, luego el día con menos hierros en la unidad, luego el más cercano.
+    - Lo que no cabe en el mes queda «pendiente sin sesión» (avisado en la grilla).
     Las reprogramaciones ya hechas se conservan (mismo destino); si la asistencia se
     corrige (sí vino) se revierten. Todo queda en la bitácora. Idempotente.
     Un mes cerrado (R12) no se toca: lanza ``MesCerrado`` (409).
@@ -438,73 +466,121 @@ def recalcular(db: Session, mes: str, usuario: str, auditar_vacio: bool = True) 
     if not mesobj.generado:
         return resumen
     lab = {d.isoformat() for d in mesobj.lab}
-    por_origen = {(mv.paciente_id, mv.fecha_origen, mv.tipo): mv for mv in mesobj.movs}
-    vistos: set[int] = set()
-    llega: dict[tuple[int, str, str], int] = defaultdict(int)
     plan = {(pid, f): c for pid, cs in mesobj.celdas.items() for f, c in cs.items()}
+    fechas_de = {pid: sorted(cs) for pid, cs in mesobj.celdas.items()}
+    previos: dict[tuple[int, str, str], list[models.EpoFeMovimiento]] = defaultdict(list)
+    reservado: dict[tuple[int, str, str], int] = defaultdict(int)   # destinos previos aún no recorridos
+    for mv in mesobj.movs:
+        previos[(mv.paciente_id, mv.fecha_origen, mv.tipo)].append(mv)
+        if mv.fecha_destino:
+            reservado[(mv.paciente_id, mv.fecha_destino, mv.tipo)] += mv.cantidad
+    llega: dict[tuple[int, str, str], int] = defaultdict(int)
     carga_fe: dict[str, int] = defaultdict(int)
     for (pid, f), c in plan.items():
         if c.fe:
             carga_fe[f] += 1
     for mv in mesobj.movs:
         if mv.tipo == "fe" and mv.fecha_destino:
-            carga_fe[mv.fecha_destino] += 1
-    fechas_de = {pid: sorted(cs) for pid, cs in mesobj.celdas.items()}
+            carga_fe[mv.fecha_destino] += mv.cantidad
+    vistos: set[int] = set()
     ahora = ahora_utc()
 
-    def destino(pid: int, f: str, tipo: str) -> Optional[str]:
-        futuras = [g for g in fechas_de.get(pid, []) if g > f and mesobj.estado.get((pid, g)) is None]
-        if tipo == "epo":
-            normales = [g for g in futuras if g not in lab]
-            return (normales or futuras or [None])[0]
-        # reprogramaciones de hierro aún no recorridas que ya apuntan a una fecha: ocupada
-        ocupadas = {m.fecha_destino for m in mesobj.movs
-                    if m.paciente_id == pid and m.tipo == "fe" and m.id not in vistos}
-        libres = [g for g in futuras if g not in ocupadas
-                  and (plan[(pid, g)].fe if (pid, g) in plan else 0) + llega[(pid, g, "fe")] == 0]
-        if not libres:
-            return None
-        return min(libres, key=lambda g: (g in lab, carga_fe[g], g))
+    def nombre(pid: int) -> str:
+        return mesobj.pacientes[pid].nombre if pid in mesobj.pacientes else f"#{pid}"
 
-    claves = sorted(plan, key=lambda k: (k[1], k[0]))
-    for pid, f in claves:
-        c = plan[(pid, f)]
-        st = mesobj.estado.get((pid, f))
-        for tipo in ("epo", "fe"):
-            qty = (c.epo if tipo == "epo" else c.fe) + llega[(pid, f, tipo)]
-            mv = por_origen.get((pid, f, tipo))
-            if st != FALTO or qty <= 0:
+    def cupo(pid: int, g: str, tipo: str) -> int:
+        c = plan.get((pid, g))
+        base = (c.epo or 0) if (c and tipo == "epo") else ((c.fe or 0) if c else 0)
+        tope = alg.EPO_MAX_SESION if tipo == "epo" else 1
+        return max(0, tope - base - llega[(pid, g, tipo)] - reservado[(pid, g, tipo)])
+
+    def repartir(pid: int, desde: str, tipo: str, qty: int, prev: list) -> list[tuple[Optional[str], int]]:
+        """Destinos (fecha, cantidad) para ``qty`` dosis que salen de ``desde``."""
+        out: list[tuple[Optional[str], int]] = []
+        resto = qty
+        usados: set[str] = set()
+        for mv in sorted((m for m in prev if m.fecha_destino), key=lambda m: m.fecha_destino):
+            g = mv.fecha_destino
+            if resto <= 0 or g <= desde or (pid, g) not in plan or g in usados:
                 continue
-            nombre = mesobj.pacientes[pid].nombre if pid in mesobj.pacientes else f"#{pid}"
+            st = mesobj.estado.get((pid, g))
+            if st == INACTIVO:
+                continue
+            n = min(resto, mv.cantidad) if st is not None else min(resto, cupo(pid, g, tipo))
+            if n > 0:
+                out.append((g, n))
+                usados.add(g)
+                resto -= n
+                if tipo == "fe":
+                    carga_fe[g] += n
+        futuras = [g for g in fechas_de.get(pid, []) if g > desde and g not in usados
+                   and mesobj.estado.get((pid, g)) is None]
+        if tipo == "epo":
+            for g in [x for x in futuras if x not in lab] + [x for x in futuras if x in lab]:
+                if resto <= 0:
+                    break
+                n = min(resto, cupo(pid, g, tipo))
+                if n > 0:
+                    out.append((g, n))
+                    resto -= n
+        else:
+            while resto > 0:
+                libres = [g for g in futuras if cupo(pid, g, "fe") > 0 and g not in {x for x, _ in out}]
+                if not libres:
+                    break
+                g = min(libres, key=lambda g: (g in lab, carga_fe[g], g))
+                out.append((g, 1))
+                carga_fe[g] += 1
+                resto -= 1
+        if resto > 0:
+            out.append((None, resto))
+        return out
+
+    def guardar(pid: int, f: str, tipo: str, destinos: list, motivo: str) -> None:
+        prev = {m.fecha_destino: m for m in previos.get((pid, f, tipo), [])}
+        que = "jeringa(s) de EPO" if tipo == "epo" else "dosis de hierro"
+        for g, n in destinos:
+            mv = prev.pop(g, None)
             if mv is None:
-                dest = destino(pid, f, tipo)
                 mv = models.EpoFeMovimiento(mes=mes, paciente_id=pid, tipo=tipo, fecha_origen=f,
-                                            fecha_destino=dest, cantidad=qty, activo=True,
+                                            fecha_destino=g, cantidad=n, activo=True,
                                             creado_por=usuario, creado_en=ahora, actualizado_en=ahora)
                 db.add(mv)
                 db.flush()
-                if dest and tipo == "fe":
-                    carga_fe[dest] += 1
-                que = f"{qty} jeringa(s) de EPO" if tipo == "epo" else "la dosis de hierro"
-                if dest:
+                if g:
                     resumen["reprogramadas"] += 1
-                    _auditar(db, mes, "reprogramar", f"{nombre}: no asistió el {f}; {que} pasa al {dest}", usuario, pid)
+                    _auditar(db, mes, "reprogramar", f"{nombre(pid)}: {motivo} el {f}; {n} {que} pasa(n) al {g}",
+                             usuario, pid)
                 else:
                     resumen["sin_destino"] += 1
-                    _auditar(db, mes, "sin_destino", f"{nombre}: no asistió el {f}; {que} no tiene sesión libre en el mes",
-                             usuario, pid)
-            elif mv.cantidad != qty:
-                _auditar(db, mes, "ajustar", f"{nombre}: reprogramación del {f} {mv.cantidad}→{qty}", usuario, pid)
-                mv.cantidad, mv.actualizado_en = qty, ahora
+                    _auditar(db, mes, "sin_destino", f"{nombre(pid)}: {motivo} el {f}; {n} {que} sin sesión "
+                             "libre en el mes", usuario, pid)
+            elif mv.cantidad != n:
+                _auditar(db, mes, "ajustar", f"{nombre(pid)}: reprogramación del {f} al {g or '—'} "
+                         f"{mv.cantidad}→{n}", usuario, pid)
+                mv.cantidad, mv.actualizado_en = n, ahora
                 resumen["ajustadas"] += 1
             vistos.add(mv.id)
-            if mv.fecha_destino:
-                llega[(pid, mv.fecha_destino, tipo)] += qty
+            if g:
+                llega[(pid, g, tipo)] += n
+
+    for pid, f in sorted(plan, key=lambda k: (k[1], k[0])):
+        c = plan[(pid, f)]
+        st = mesobj.estado.get((pid, f))
+        for tipo in ("epo", "fe"):
+            prev = previos.get((pid, f, tipo), [])
+            for mv in prev:                                   # ya se recorre su origen
+                if mv.fecha_destino:
+                    reservado[(pid, mv.fecha_destino, tipo)] -= mv.cantidad
+                    if tipo == "fe":
+                        carga_fe[mv.fecha_destino] -= mv.cantidad
+            qty = (c.epo if tipo == "epo" else c.fe) + llega[(pid, f, tipo)]
+            if st != FALTO or qty <= 0:
+                continue
+            guardar(pid, f, tipo, repartir(pid, f, tipo, qty, prev), "no asistió")
     for mv in mesobj.movs:
         if mv.id not in vistos:
             mv.activo, mv.actualizado_en = False, ahora
-            if mv.tipo == "fe" and mv.fecha_destino:
-                carga_fe[mv.fecha_destino] -= 1
             resumen["revertidas"] += 1
             _auditar(db, mes, "revertir", f"Se deshace la reprogramación del {mv.fecha_origen} "
                      f"({mv.tipo.upper()}) al {mv.fecha_destino or '—'}: ya no consta inasistencia", usuario,
@@ -585,7 +661,9 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
     dias = [{"fecha": d.isoformat(), "dia": d.day, "dow": DIA_CORTO[d.weekday()], "lab": d.isoformat() in lab}
             for d in alg.dias_del_mes(mesobj.anio, mesobj.m) if d.weekday() != 6]
     ef = mesobj.efectivo()
-    sale = {(mv.paciente_id, mv.fecha_origen, mv.tipo): mv for mv in mesobj.movs}
+    sale: dict[tuple[int, str], list] = defaultdict(list)
+    for mv in mesobj.movs:
+        sale[(mv.paciente_id, mv.fecha_origen)].append(mv)
     llegan: dict[tuple[int, str], list] = defaultdict(list)
     for mv in mesobj.movs:
         if mv.fecha_destino:
@@ -610,8 +688,9 @@ def grilla(db: Session, mes: str, hoy: Optional[date] = None) -> dict:
                 "epo": e, "fe": fe, "epo_ui": e * JERINGA_UI, "epo_plan": c.epo or 0, "fe_plan": c.fe or 0,
                 "manual": bool(c.manual), "estado": st, "lab": f in lab,
                 "llega": llegan.get((pid, f), []),
-                "sale": [{"tipo": tp, "cantidad": mv.cantidad, "hacia": mv.fecha_destino}
-                         for tp in ("epo", "fe") if (mv := sale.get((pid, f, tp)))],
+                "sale": [{"tipo": mv.tipo, "cantidad": mv.cantidad, "hacia": mv.fecha_destino}
+                         for mv in sorted(sale.get((pid, f), []),
+                                          key=lambda m: (m.tipo, m.fecha_destino or "9999"))],
             }
             if f in totales_dia and st != FALTO:
                 totales_dia[f]["epo_jeringas"] += e

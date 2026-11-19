@@ -194,11 +194,17 @@ def test_inasistencia_pasa_la_epo_a_la_siguiente_sesion_8000_ui(admin):
         # recalcular es idempotente
         admin.post(f"/api/epo-fe/{MES}/recalcular")
         assert _fila(_grilla(admin), a["id"])["celdas"]["2025-09-05"]["epo"] == 2
-        # falta también el viernes: se acumula (1 + 2 = 3) el lunes 8
+        # falta también el viernes: el lunes 8 lleva el tope (2 = 8.000 UI) y lo que
+        # excede sigue a la siguiente sesión normal (el 10 es laboratorio: el 12)
         ses5, _ = marcar(admin, "2025-09-05", "N", a["id"], asistencia="NA")
         _cerrar(admin, ses5["id"])
         f = _fila(_grilla(admin), a["id"])
-        assert f["celdas"]["2025-09-08"]["epo"] == 3 and any("jeringas" in x for x in f["avisos"])
+        assert f["celdas"]["2025-09-08"]["epo"] == 2
+        assert max(x["epo"] for x in f["celdas"].values()) == 2
+        sale = f["celdas"]["2025-09-05"]["sale"]
+        assert sum(x["cantidad"] for x in sale) == 3 and all(x["hacia"] and x["cantidad"] <= 2 for x in sale)   # 1 + 2 que le llegaban
+        assert sum(x["epo"] for x in f["celdas"].values()) == 13            # nada se pierde
+        assert not f["celdas"].get("2025-09-10", {}).get("epo")
 
 
 def test_vino_con_peso_de_entrada_no_se_reprograma_y_corregir_asistencia_revierte(admin):
@@ -367,7 +373,7 @@ def test_mes_cerrado_bloquea_la_programacion_y_el_recalculo(admin):
             _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/pacientes/{a['id']}", json={"epo_jeringas": 8}))
             otro = next(x for x in _con_epo(f) if x > dia and x not in LAB)
             _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/celdas",
-                              json={"paciente_id": a["id"], "fecha": otro, "epo": 3}))
+                              json={"paciente_id": a["id"], "fecha": otro, "epo": 2}))
             _es_409(admin.put(f"/api/epo-fe/{MES_CERRADO}/laboratorio", json={"fechas": []}))
             _es_409(admin.delete(f"/api/epo-fe/{MES_CERRADO}"))
             # el gancho del cierre de un día no toca las celdas de un mes cerrado
@@ -401,3 +407,36 @@ def test_vino_y_falto_es_la_misma_regla_que_insumos():
         assert hd.falto(asis, peso, hoja_cerrada=True) == (not llego)
     assert hd.falto(None, None, hoja_cerrada=False) is False      # aún sin marcar en hoja abierta
     assert hd.falto("NA", None, hoja_cerrada=False) is True
+
+
+# ── Tope de EPO: 2 jeringas (8.000 UI) por sesión, 24 al mes ─────────────────
+
+def test_tope_de_epo_por_sesion_y_por_mes(admin):
+    with pacientes(admin, ("T-R14-040", LMV4)) as (a,):
+        _generar(admin)
+        url = f"/api/epo-fe/{MES}/pacientes/{a['id']}"
+        r = admin.put(url, json={"epo_jeringas": 25})
+        assert r.status_code == 422 and "Máximo 24 jeringas" in r.json()["detail"]
+        with SessionLocal() as db:   # 8 sesiones en el mes → caben 16
+            db.add(models.PacienteInactividad(paciente_id=a["id"], desde="2025-09-17", hasta="2025-09-29",
+                                              origen="inactivo"))
+            db.commit()
+        r = admin.put(url, json={"epo_jeringas": 20})
+        assert r.status_code == 422 and "caben como máximo 16" in r.json()["detail"]
+        assert admin.put(url, json={"epo_jeringas": 16}).status_code == 200
+        f = _fila(_grilla(admin), a["id"])
+        assert f["epo_programada"] == 16 and max(x["epo"] for x in f["celdas"].values()) == 2
+        r = admin.put(f"/api/epo-fe/{MES}/celdas", json={"paciente_id": a["id"], "fecha": "2025-09-01", "epo": 3})
+        assert r.status_code == 422 and "8.000 UI" in r.json()["detail"]
+        ses, reg = registro_de(admin, "2025-09-03", "N", a["id"])
+        assert admin.patch(f"/api/sesiones/registros/{reg['id']}", json={"epo_jeringas": 3}).status_code == 422
+
+
+def test_generar_limita_la_epo_de_la_ficha(admin):
+    with pacientes(admin, ("T-R14-041", dict(LMV4, epo_mensual=200000.0))) as (a,):   # 50 jeringas
+        _generar(admin)
+        g = _grilla(admin)
+        f = _fila(g, a["id"])
+        assert f["epo_mes"] == 24 and f["epo_programada"] == 24
+        assert max(x["epo"] for x in f["celdas"].values()) == 2
+        assert any(x["accion"] == "limitar" for x in g["auditoria"])

@@ -109,8 +109,15 @@ def test_epo_inevitable_usa_dias_de_laboratorio():
     plan = repartir_epo(ses, 25, lab)                          # 12 normales × 2 = 24 < 25
     assert sum(plan.values()) == 25 and plan[date(2025, 9, 10)] == 1
     assert max(plan.values()) == 2
-    plan = repartir_epo(ses, 30, lab)                          # > 2 por sesión: parejo en todas
-    assert sum(plan.values()) == 30 and max(plan.values()) - min(plan.values()) <= 1
+    plan = repartir_epo(ses, 30, lab)                          # tope 2 por sesión: caben 26, sobran 4
+    assert sum(plan.values()) == 26 and max(plan.values()) == 2
+
+
+@pytest.mark.parametrize("e", range(0, 40))
+def test_epo_nunca_mas_de_2_jeringas_por_sesion(e):
+    ses = sesiones_del_mes(2026, 12, MJS)
+    plan = repartir_epo(ses, e, dias_lab_por_defecto(2026, 12))
+    assert all(v <= 2 for v in plan.values()) and sum(plan.values()) == min(e, 2 * len(ses))
 
 
 def test_epo_casos_limite():
